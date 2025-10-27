@@ -54,7 +54,7 @@ export const useAttendanceState = (userId: string | undefined) => {
         .from('breaks')
         .select('*')
         .eq('user_id', userId)
-        .eq('status', 'active')
+        .is('ended_at', null)
         .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle();

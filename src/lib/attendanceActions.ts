@@ -55,7 +55,7 @@ const resolveActiveBreakId = async (userId: string, breakId?: string) => {
 
     if (candidateError) throw candidateError;
 
-    if (candidate && candidate.status === 'active' && !candidate.ended_at) {
+    if (candidate && !candidate.ended_at) {
       return candidate.id;
     }
   }
@@ -64,7 +64,6 @@ const resolveActiveBreakId = async (userId: string, breakId?: string) => {
     .from('breaks')
     .select('id')
     .eq('user_id', userId)
-    .eq('status', 'active')
     .is('ended_at', null)
     .order('started_at', { ascending: false })
     .limit(1)
@@ -90,7 +89,6 @@ export const endBreak = async (userId: string, breakId?: string) => {
     })
     .eq('id', activeBreakId)
     .is('ended_at', null)
-    .eq('status', 'active')
     .select()
     .maybeSingle();
 

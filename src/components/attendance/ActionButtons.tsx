@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { AttendanceState } from '@/types/attendance';
-import { LogIn, LogOut, Coffee, Utensils, Pause } from 'lucide-react';
+import { LogIn, LogOut, Coffee, Utensils, Pause, Square } from 'lucide-react';
 
 interface ActionButtonsProps {
   state: AttendanceState;
@@ -40,19 +40,35 @@ export const ActionButtons = ({
       emphasis: canCheckIn && !loading,
     },
     {
-      key: 'break',
-      label: canEndBreak ? 'End Break' : 'Start Break',
-      icon: canEndBreak ? Pause : Coffee,
-      onClick: canEndBreak ? onEndBreak : onStartBreak,
-      disabled: (!canStartBreak && !canEndBreak) || loading,
+      key: 'start-break',
+      label: 'Start Break',
+      icon: Coffee,
+      onClick: onStartBreak,
+      disabled: !canStartBreak || loading,
+      emphasis: canStartBreak && !loading,
+    },
+    {
+      key: 'end-break',
+      label: 'End Break',
+      icon: Pause,
+      onClick: onEndBreak,
+      disabled: !canEndBreak || loading,
       emphasis: canEndBreak && !loading,
     },
     {
-      key: 'lunch',
-      label: canEndLunch ? 'End Lunch' : 'Lunch Break',
-      icon: canEndLunch ? Pause : Utensils,
-      onClick: canEndLunch ? onEndLunch : onStartLunch,
-      disabled: (!canStartLunch && !canEndLunch) || loading,
+      key: 'start-lunch',
+      label: 'Start Lunch',
+      icon: Utensils,
+      onClick: onStartLunch,
+      disabled: !canStartLunch || loading,
+      emphasis: canStartLunch && !loading,
+    },
+    {
+      key: 'end-lunch',
+      label: 'End Lunch',
+      icon: Square,
+      onClick: onEndLunch,
+      disabled: !canEndLunch || loading,
       emphasis: canEndLunch && !loading,
     },
     {
@@ -61,12 +77,12 @@ export const ActionButtons = ({
       icon: LogOut,
       onClick: onCheckOut,
       disabled: !canCheckOut || loading,
-      emphasis: false,
+      emphasis: canCheckOut && !loading,
     },
   ];
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {actions.map(({ key, label, icon: Icon, onClick, disabled, emphasis }) => (
         <Button
           key={key}
