@@ -1,22 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAttendanceState } from '@/hooks/useAttendanceState';
+import { useXpSystem } from '@/hooks/useXpSystem';
 import { StateIndicator } from '@/components/attendance/StateIndicator';
 import { ActionButtons } from '@/components/attendance/ActionButtons';
-import { 
-  checkIn, 
-  checkOut, 
-  startBreak, 
-  endBreak, 
-  startLunch, 
-  endLunch 
+import {
+  checkIn,
+  checkOut,
+  startBreak,
+  endBreak,
+  startLunch,
+  endLunch
 } from '@/lib/attendanceActions';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Clock, Coffee, Utensils, Target } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
+import AdminDashboard from '@/components/admin/AdminDashboard';
+import { UserRole } from '@/types/attendance';
+import { XpProgress } from '@/components/xp/XpProgress';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,29 +28,78 @@ const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [role, setRole] = useState<UserRole>('employee');
+  const [roleLoading, setRoleLoading] = useState(true);
 
-  const { state, currentAttendance, activeBreak, refresh } = useAttendanceState(user?.id);
+  const {
+    state,
+    currentAttendance,
+    activeBreak,
+    refresh,
+    loading: attendanceLoading,
+  } = useAttendanceState(user?.id);
+  const xpState = useXpSystem(user?.id);
+
+  const fetchUserRole = useCallback(
+    async (userId: string) => {
+      setRoleLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+
+        setRole((data?.role as UserRole) ?? 'employee');
+      } catch (error: any) {
+        console.error('Error fetching user role:', error);
+        toast({
+          title: 'Unable to determine access level',
+          description: 'Showing the employee dashboard for now.',
+          variant: 'destructive',
+        });
+        setRole('employee');
+      } finally {
+        setRoleLoading(false);
+      }
+    },
+    [toast],
+  );
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session) {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        void fetchUserRole(currentUser.id);
+      } else {
+        setRole('employee');
+        setRoleLoading(false);
         navigate('/auth');
       }
+      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (!session) {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      if (nextUser) {
+        void fetchUserRole(nextUser.id);
+      } else {
+        setRole('employee');
+        setRoleLoading(false);
         navigate('/auth');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [fetchUserRole, navigate]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -62,7 +115,7 @@ const Dashboard = () => {
         title: 'Checked In!',
         description: 'Your shift has started',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -75,7 +128,14 @@ const Dashboard = () => {
   };
 
   const handleCheckOut = async () => {
-    if (!currentAttendance) return;
+    if (!currentAttendance) {
+      toast({
+        title: 'No active shift found',
+        description: 'Please check in before attempting to check out.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await checkOut(currentAttendance.id);
@@ -83,7 +143,7 @@ const Dashboard = () => {
         title: 'Checked Out!',
         description: 'Have a great day!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -104,7 +164,7 @@ const Dashboard = () => {
         title: 'Break Started',
         description: 'Take your time!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -117,7 +177,14 @@ const Dashboard = () => {
   };
 
   const handleEndBreak = async () => {
-    if (!activeBreak) return;
+    if (!activeBreak) {
+      toast({
+        title: 'No active break',
+        description: 'Start a break first to be able to end it.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await endBreak(activeBreak.id);
@@ -125,7 +192,7 @@ const Dashboard = () => {
         title: 'Break Ended',
         description: 'Welcome back!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -146,7 +213,7 @@ const Dashboard = () => {
         title: 'Lunch Break',
         description: 'Enjoy your meal!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -159,7 +226,14 @@ const Dashboard = () => {
   };
 
   const handleEndLunch = async () => {
-    if (!activeBreak) return;
+    if (!activeBreak) {
+      toast({
+        title: 'No active lunch break',
+        description: 'Start a lunch break before ending it.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await endLunch(activeBreak.id);
@@ -167,7 +241,7 @@ const Dashboard = () => {
         title: 'Lunch Ended',
         description: 'Back to work!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -179,69 +253,129 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
+  const derivedName = useMemo(() => {
+    if (!user) return '';
+    const metadata = user.user_metadata ?? {};
+    const possibleName =
+      (metadata.full_name as string | undefined) ||
+      (metadata.display_name as string | undefined) ||
+      (metadata.name as string | undefined) ||
+      '';
+
+    return (possibleName || user.email || '').toString();
+  }, [user]);
+
+  const isZouhair = useMemo(() => {
+    const normalizedName = derivedName.toLowerCase();
+    const normalizedEmail = (user?.email ?? '').toLowerCase();
+    return normalizedName.includes('zouhair ouqaf') || normalizedEmail.includes('zouhair');
+  }, [derivedName, user]);
+
+  const effectiveRole = useMemo<UserRole>(() => {
+    if (role === 'super_admin' || isZouhair) {
+      return 'super_admin';
+    }
+    return role;
+  }, [isZouhair, role]);
+
+  if (loading || roleLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-black/80">
+        <div className="text-center text-foreground">
+          <div className="w-16 h-16 border-4 border-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
+  if (effectiveRole === 'super_admin') {
+    return <AdminDashboard user={user} onSignOut={handleSignOut} />;
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-yellow flex items-center justify-center">
-              <Clock className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-black/80 text-foreground">
+      <header className="border-b border-yellow/10 bg-black/40 backdrop-blur">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-yellow/20 text-yellow">
+              <Clock className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">Market Wave</h1>
-              <p className="text-sm text-muted-foreground">Welcome back, {user?.email}</p>
+              <p className="text-sm uppercase tracking-wide text-yellow/80">Personal Attendance</p>
+              <h1 className="text-2xl font-semibold">Welcome back, {derivedName || user.email}</h1>
             </div>
           </div>
-          <Button variant="outline" onClick={handleSignOut}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-4">
+            {(xpState.loading || xpState.xpEnabled) && (
+              <XpProgress
+                loading={xpState.loading}
+                level={xpState.level}
+                totalXp={xpState.totalXp}
+                progressPercentage={xpState.progressPercentage}
+                xpToNextLevel={xpState.xpToNextLevel}
+              />
+            )}
+            <Button
+              variant="outline"
+              onClick={handleSignOut}
+              className="gap-2 border-yellow/40 bg-yellow/10 text-yellow hover:bg-yellow/20"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign out</span>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
-        {/* Status Card */}
-        <Card>
+      <main className="container mx-auto max-w-4xl space-y-8 px-6 py-10">
+        <Card className="border-yellow/20 bg-card/50 backdrop-blur">
           <CardHeader>
-            <CardTitle>Current Status</CardTitle>
-            <CardDescription>Your real-time attendance state</CardDescription>
+            <CardTitle className="text-lg">Current Status</CardTitle>
+            <CardDescription className="text-muted-foreground/80">
+              Your real-time attendance state
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <StateIndicator state={state} />
-            
+
             {state === 'checked_in' && currentAttendance && (
               <div className="text-sm text-muted-foreground">
-                Checked in at {new Date(currentAttendance.clock_in_at).toLocaleTimeString()}
+                Checked in at {new Date(currentAttendance.clock_in_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </div>
             )}
-            
+
             {(state === 'on_break' || state === 'on_lunch') && activeBreak && (
               <div className="text-sm text-muted-foreground">
-                Started at {new Date(activeBreak.started_at).toLocaleTimeString()}
+                Started at {new Date(activeBreak.started_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Action Buttons */}
-        <Card>
+        <Card className="border-yellow/20 bg-card/50 backdrop-blur">
           <CardHeader>
-            <CardTitle>Actions</CardTitle>
-            <CardDescription>Manage your attendance</CardDescription>
+            <CardTitle className="text-lg">Actions</CardTitle>
+            <CardDescription className="text-muted-foreground/80">
+              Manage your attendance with a tap
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {attendanceLoading && (
+              <p className="text-sm text-muted-foreground/80">
+                Syncing your latest attendance so the right actions are available…
+              </p>
+            )}
             <ActionButtons
               state={state}
               onCheckIn={handleCheckIn}
@@ -250,50 +384,49 @@ const Dashboard = () => {
               onEndBreak={handleEndBreak}
               onStartLunch={handleStartLunch}
               onEndLunch={handleEndLunch}
-              loading={actionLoading}
+              loading={actionLoading || attendanceLoading}
             />
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-yellow/20 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
+                  <Clock className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Worked Today</p>
-                  <p className="text-2xl font-bold">0h 0m</p>
+                  <p className="text-sm text-muted-foreground/80">Worked Today</p>
+                  <p className="text-2xl font-semibold text-foreground">0h 0m</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-yellow/10 flex items-center justify-center">
-                  <Coffee className="w-6 h-6 text-yellow" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
+                  <Coffee className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Break Time</p>
-                  <p className="text-2xl font-bold">0m</p>
+                  <p className="text-sm text-muted-foreground/80">Break Time</p>
+                  <p className="text-2xl font-semibold text-foreground">0m</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow to-yellow-light flex items-center justify-center">
-                  <Target className="w-6 h-6 text-yellow-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
+                  <Target className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Streak</p>
-                  <p className="text-2xl font-bold">0 days</p>
+                  <p className="text-sm text-muted-foreground/80">Streak</p>
+                  <p className="text-2xl font-semibold text-foreground">0 days</p>
                 </div>
               </div>
             </CardContent>
