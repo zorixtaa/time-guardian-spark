@@ -52,11 +52,17 @@ export const endBreak = async (breakId: string) => {
       status: 'completed',
     })
     .eq('id', breakId)
-    .select()
-    .single();
+    .is('ended_at', null)
+    .eq('status', 'active')
+    .select();
 
   if (error) throw error;
-  return data;
+
+  if (!data || data.length === 0) {
+    throw new Error('No active break found to end. It may have already been completed.');
+  }
+
+  return data[0];
 };
 
 export const startLunch = async (userId: string) => {
