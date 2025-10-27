@@ -196,11 +196,11 @@ const Dashboard = () => {
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <Clock className="w-6 h-6 text-primary-foreground" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-yellow flex items-center justify-center">
+              <Clock className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">ZZPS Attendance</h1>
+              <h1 className="text-xl font-bold">Market Wave</h1>
               <p className="text-sm text-muted-foreground">Welcome back, {user?.email}</p>
             </div>
           </div>
@@ -260,8 +260,8 @@ const Dashboard = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-primary" />
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-yellow/20 flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-foreground" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Worked Today</p>
@@ -274,8 +274,8 @@ const Dashboard = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-warning/10 flex items-center justify-center">
-                  <Coffee className="w-6 h-6 text-warning" />
+                <div className="w-12 h-12 rounded-lg bg-yellow/10 flex items-center justify-center">
+                  <Coffee className="w-6 h-6 text-yellow" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Break Time</p>
@@ -288,8 +288,8 @@ const Dashboard = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-badge/10 flex items-center justify-center">
-                  <Target className="w-6 h-6 text-badge" />
+                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow to-yellow-light flex items-center justify-center">
+                  <Target className="w-6 h-6 text-yellow-foreground" />
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Streak</p>
