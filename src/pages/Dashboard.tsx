@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAttendanceState } from '@/hooks/useAttendanceState';
+import { useAttendanceMetrics } from '@/hooks/useAttendanceMetrics';
 import { useXpSystem } from '@/hooks/useXpSystem';
 import { StateIndicator } from '@/components/attendance/StateIndicator';
 import { ActionButtons } from '@/components/attendance/ActionButtons';
@@ -22,6 +23,26 @@ import AdminDashboard from '@/components/admin/AdminDashboard';
 import { UserRole } from '@/types/attendance';
 import { XpProgress } from '@/components/xp/XpProgress';
 
+const formatHoursAndMinutes = (totalMinutes: number) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  return `${minutes}m`;
+};
+
+const formatDaysLabel = (days: number) => {
+  const suffix = days === 1 ? 'day' : 'days';
+  return `${days} ${suffix}`;
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -30,6 +51,7 @@ const Dashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [role, setRole] = useState<UserRole>('employee');
   const [roleLoading, setRoleLoading] = useState(true);
+  const [userTeamId, setUserTeamId] = useState<string | null>(null);
 
   const {
     state,
@@ -38,23 +60,36 @@ const Dashboard = () => {
     refresh,
     loading: attendanceLoading,
   } = useAttendanceState(user?.id);
+  const {
+    metrics,
+    loading: metricsLoading,
+    refresh: refreshMetrics,
+  } = useAttendanceMetrics(user?.id);
   const xpState = useXpSystem(user?.id);
 
   const fetchUserRole = useCallback(
     async (userId: string) => {
       setRoleLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
+        const [{ data: roleData, error: roleError }, { data: profileData, error: profileError }] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase.from('profiles').select('team_id').eq('id', userId).maybeSingle(),
+        ]);
 
-        if (error && error.code !== 'PGRST116') {
-          throw error;
+        if (roleError && roleError.code !== 'PGRST116') {
+          throw roleError;
         }
 
-        setRole((data?.role as UserRole) ?? 'employee');
+        if (profileError && profileError.code !== 'PGRST116') {
+          throw profileError;
+        }
+
+        setRole((roleData?.role as UserRole) ?? 'employee');
+        setUserTeamId((profileData?.team_id as string | null) ?? null);
       } catch (error: any) {
         console.error('Error fetching user role:', error);
         toast({
@@ -63,6 +98,7 @@ const Dashboard = () => {
           variant: 'destructive',
         });
         setRole('employee');
+        setUserTeamId(null);
       } finally {
         setRoleLoading(false);
       }
@@ -102,6 +138,15 @@ const Dashboard = () => {
   }, [fetchUserRole, navigate]);
 
   const handleSignOut = async () => {
+    if (state !== 'checked_out' && state !== 'not_checked_in') {
+      toast({
+        title: 'Check out required',
+        description: 'Please end your shift before signing out.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     await supabase.auth.signOut();
     navigate('/auth');
   };
@@ -115,7 +160,7 @@ const Dashboard = () => {
         title: 'Checked In!',
         description: 'Your shift has started',
       });
-      await refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -143,7 +188,7 @@ const Dashboard = () => {
         title: 'Checked Out!',
         description: 'Have a great day!',
       });
-      await refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -164,7 +209,7 @@ const Dashboard = () => {
         title: 'Break Started',
         description: 'Take your time!',
       });
-      await refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -192,7 +237,7 @@ const Dashboard = () => {
         title: 'Break Ended',
         description: 'Welcome back!',
       });
-      await refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -213,7 +258,7 @@ const Dashboard = () => {
         title: 'Lunch Break',
         description: 'Enjoy your meal!',
       });
-      await refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -241,7 +286,7 @@ const Dashboard = () => {
         title: 'Lunch Ended',
         description: 'Back to work!',
       });
-      await refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -278,6 +323,14 @@ const Dashboard = () => {
     return role;
   }, [isZouhair, role]);
 
+  const workedTodayDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.workedMinutes);
+  const breakTimeDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.breakMinutes);
+  const streakDisplay = metricsLoading ? 'Calculating…' : formatDaysLabel(metrics.streakDays);
+
   if (loading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-black/80">
@@ -293,8 +346,15 @@ const Dashboard = () => {
     return null;
   }
 
-  if (effectiveRole === 'super_admin') {
-    return <AdminDashboard user={user} onSignOut={handleSignOut} />;
+  if (effectiveRole === 'super_admin' || effectiveRole === 'admin') {
+    return (
+      <AdminDashboard
+        user={user}
+        onSignOut={handleSignOut}
+        role={effectiveRole}
+        teamId={userTeamId}
+      />
+    );
   }
 
   return (
@@ -398,7 +458,7 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground/80">Worked Today</p>
-                  <p className="text-2xl font-semibold text-foreground">0h 0m</p>
+                  <p className="text-2xl font-semibold text-foreground">{workedTodayDisplay}</p>
                 </div>
               </div>
             </CardContent>
@@ -412,7 +472,7 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground/80">Break Time</p>
-                  <p className="text-2xl font-semibold text-foreground">0m</p>
+                  <p className="text-2xl font-semibold text-foreground">{breakTimeDisplay}</p>
                 </div>
               </div>
             </CardContent>
@@ -426,7 +486,7 @@ const Dashboard = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground/80">Streak</p>
-                  <p className="text-2xl font-semibold text-foreground">0 days</p>
+                  <p className="text-2xl font-semibold text-foreground">{streakDisplay}</p>
                 </div>
               </div>
             </CardContent>

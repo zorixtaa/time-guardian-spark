@@ -50,6 +50,8 @@ import { XpProgress } from '@/components/xp/XpProgress';
 interface AdminDashboardProps {
   user: User;
   onSignOut: () => void;
+  role: UserRole;
+  teamId: string | null;
 }
 
 interface OverviewMetrics {
@@ -110,7 +112,7 @@ const formatRole = (role: UserRole) =>
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 
-const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
+const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -130,6 +132,7 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   const [assigningDepartment, setAssigningDepartment] = useState(false);
   const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
   const xpState = useXpSystem(user.id);
+  const isSuperAdmin = role === 'super_admin';
 
   const fetchAdminData = useCallback(
     async (showSpinner = false) => {
@@ -146,33 +149,117 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
         const endOfDay = new Date(now);
         endOfDay.setHours(23, 59, 59, 999);
 
-        const [attendanceRes, breaksRes, profilesRes, rolesRes, teamsRes] = await Promise.all([
-          supabase
+        const profileQuery = supabase
+          .from('profiles')
+          .select('id, display_name, team_id')
+          .order('display_name', { ascending: true });
+
+        if (!isSuperAdmin) {
+          if (teamId) {
+            profileQuery.eq('team_id', teamId);
+          } else {
+            profileQuery.is('team_id', null);
+          }
+        }
+
+        const { data: profileData, error: profileError } = await profileQuery;
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        const profiles = profileData ?? [];
+        const visibleUserIds = profiles.map((profile) => profile.id);
+
+        let teamsData: { id: string; name: string }[] = [];
+
+        if (isSuperAdmin) {
+          const { data: allTeams, error: teamsError } = await supabase
+            .from('teams')
+            .select('id, name')
+            .order('name', { ascending: true });
+
+          if (teamsError) {
+            throw teamsError;
+          }
+
+          teamsData = allTeams ?? [];
+        } else if (teamId) {
+          const { data: teamRecord, error: teamError } = await supabase
+            .from('teams')
+            .select('id, name')
+            .eq('id', teamId)
+            .maybeSingle();
+
+          if (teamError && teamError.code !== 'PGRST116') {
+            throw teamError;
+          }
+
+          teamsData = teamRecord ? [teamRecord] : [];
+        }
+
+        let attendance: AttendanceSnapshot[] = [];
+        let activeBreaks: ActiveBreak[] = [];
+        let roles: RoleRecord[] = [];
+
+        if (isSuperAdmin || visibleUserIds.length > 0) {
+          const attendanceQuery = supabase
             .from('attendance')
             .select('id, user_id, clock_in_at, clock_out_at')
             .gte('clock_in_at', startOfDay.toISOString())
             .lte('clock_in_at', endOfDay.toISOString())
-            .is('clock_out_at', null),
-          supabase
-            .from('breaks')
-            .select('id, user_id, type, started_at')
-            .eq('status', 'active'),
-          supabase.from('profiles').select('id, display_name, team_id').order('display_name', { ascending: true }),
-          supabase.from('user_roles').select('user_id, role, id'),
-          supabase.from('teams').select('id, name').order('name', { ascending: true }),
-        ]);
+            .is('clock_out_at', null);
 
-        if (attendanceRes.error || breaksRes.error || profilesRes.error || rolesRes.error || teamsRes.error) {
-          throw attendanceRes.error || breaksRes.error || profilesRes.error || rolesRes.error || teamsRes.error;
+          if (!isSuperAdmin) {
+            attendanceQuery.in('user_id', visibleUserIds);
+          }
+
+          const { data: attendanceData, error: attendanceError } = await attendanceQuery;
+
+          if (attendanceError) {
+            throw attendanceError;
+          }
+
+          attendance = (attendanceData ?? []) as AttendanceSnapshot[];
         }
 
-        const attendance = (attendanceRes.data ?? []) as AttendanceSnapshot[];
-        const activeBreaks = (breaksRes.data ?? []) as ActiveBreak[];
-        const profiles = profilesRes.data ?? [];
-        const roles = (rolesRes.data ?? []) as RoleRecord[];
-        const teamsData = (teamsRes.data ?? []) as { id: string; name: string }[];
+        if (isSuperAdmin || visibleUserIds.length > 0) {
+          const breaksQuery = supabase
+            .from('breaks')
+            .select('id, user_id, type, started_at')
+            .eq('status', 'active');
+
+          if (!isSuperAdmin) {
+            breaksQuery.in('user_id', visibleUserIds);
+          }
+
+          const { data: breaksData, error: breaksError } = await breaksQuery;
+
+          if (breaksError) {
+            throw breaksError;
+          }
+
+          activeBreaks = (breaksData ?? []) as ActiveBreak[];
+        }
+
+        if (isSuperAdmin || visibleUserIds.length > 0) {
+          const rolesQuery = supabase.from('user_roles').select('user_id, role, id');
+
+          if (!isSuperAdmin) {
+            rolesQuery.in('user_id', visibleUserIds);
+          }
+
+          const { data: rolesData, error: rolesError } = await rolesQuery;
+
+          if (rolesError) {
+            throw rolesError;
+          }
+
+          roles = (rolesData ?? []) as RoleRecord[];
+        }
+
         setRoleRecords(roles);
-        setTeamOptions(teamsData);
+        setTeamOptions(isSuperAdmin ? teamsData : []);
 
         const onLunch = activeBreaks.filter((breakRecord) => breakRecord.type === 'lunch').length;
         const onBreak = activeBreaks.length - onLunch;
@@ -235,7 +322,9 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
               status,
               lastActivity,
               teamId: profile.team_id,
-              teamName: profile.team_id ? teamNameMap.get(profile.team_id) ?? 'Unknown department' : 'Unassigned',
+              teamName: profile.team_id
+                ? teamNameMap.get(profile.team_id) ?? 'Unknown department'
+                : 'Unassigned',
             };
           })
           .sort((a, b) => statusWeight[a.status] - statusWeight[b.status] || a.name.localeCompare(b.name));
@@ -313,7 +402,7 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
         setRefreshing(false);
       }
     },
-    [toast],
+    [toast, isSuperAdmin, teamId],
   );
 
   useEffect(() => {
@@ -368,6 +457,15 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
 
   const handleCreateDepartment = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isSuperAdmin) {
+      toast({
+        title: 'Super admin access required',
+        description: 'Only super admins can create departments.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const name = newDepartmentName.trim();
 
     if (!name) {
@@ -406,6 +504,15 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   };
 
   const handlePromoteToAdmin = async () => {
+    if (!isSuperAdmin) {
+      toast({
+        title: 'Super admin access required',
+        description: 'Only super admins can manage admin privileges.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!selectedAdminCandidate) {
       toast({
         title: 'Select a teammate',
@@ -463,6 +570,15 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   };
 
   const handleAssignDepartment = async () => {
+    if (!isSuperAdmin) {
+      toast({
+        title: 'Super admin access required',
+        description: 'Only super admins can reassign departments.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!selectedAssignmentMember || !selectedAssignmentDepartment) {
       toast({
         title: 'Select teammate and department',
@@ -521,6 +637,15 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   };
 
   const handleDeleteDepartment = async (departmentId: string) => {
+    if (!isSuperAdmin) {
+      toast({
+        title: 'Super admin access required',
+        description: 'Only super admins can delete departments.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const department = teamOptions.find((team) => team.id === departmentId);
 
     if (!department) {
@@ -574,6 +699,15 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   };
 
   const handleRemoveAdmin = async (userId: string) => {
+    if (!isSuperAdmin) {
+      toast({
+        title: 'Super admin access required',
+        description: 'Only super admins can remove admin privileges.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const adminRecord = roleRecords.find((record) => record.user_id === userId && record.role === 'admin');
 
     if (!adminRecord) {
@@ -618,6 +752,8 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
     );
   }
 
+  const dashboardTitle = isSuperAdmin ? 'Super Admin Control Center' : 'Admin Command Center';
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-black/80 text-foreground">
       <div className="border-b border-yellow/10 bg-black/40 backdrop-blur">
@@ -627,7 +763,7 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-sm uppercase tracking-wide text-yellow/80">Super Admin Control Center</p>
+              <p className="text-sm uppercase tracking-wide text-yellow/80">{dashboardTitle}</p>
               <h1 className="text-2xl font-semibold">{adminGreeting}</h1>
             </div>
           </div>
@@ -805,9 +941,10 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
           </Card>
         </section>
 
-        <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <Card className="border-yellow/30 bg-card/50 backdrop-blur">
-            <CardHeader>
+        {isSuperAdmin && (
+          <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card className="border-yellow/30 bg-card/50 backdrop-blur">
+              <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Building2 className="h-5 w-5 text-yellow" />
                 Departments
@@ -975,8 +1112,8 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
             </CardContent>
           </Card>
 
-          <Card className="border-yellow/30 bg-card/50 backdrop-blur">
-            <CardHeader>
+            <Card className="border-yellow/30 bg-card/50 backdrop-blur">
+              <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ShieldCheck className="h-5 w-5 text-yellow" />
                 Admin management
@@ -1064,8 +1201,9 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
                 ))}
               </div>
             </CardContent>
-          </Card>
-        </section>
+            </Card>
+          </section>
+        )}
       </main>
     </div>
   );
