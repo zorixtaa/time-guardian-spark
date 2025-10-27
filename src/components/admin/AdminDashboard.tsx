@@ -42,6 +42,8 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { AttendanceRecord, BreakRecord, UserRole } from '@/types/attendance';
+import { useXpSystem } from '@/hooks/useXpSystem';
+import { XpProgress } from '@/components/xp/XpProgress';
 
 interface AdminDashboardProps {
   user: User;
@@ -115,6 +117,7 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   const [selectedAdminCandidate, setSelectedAdminCandidate] = useState('');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
   const [removingAdminId, setRemovingAdminId] = useState<string | null>(null);
+  const xpState = useXpSystem(user.id);
 
   const fetchAdminData = useCallback(
     async (showSpinner = false) => {
@@ -482,7 +485,17 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
               <h1 className="text-2xl font-semibold">{adminGreeting}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-4">
+            {(xpState.loading || xpState.xpEnabled) && (
+              <XpProgress
+                loading={xpState.loading}
+                level={xpState.level}
+                totalXp={xpState.totalXp}
+                progressPercentage={xpState.progressPercentage}
+                xpToNextLevel={xpState.xpToNextLevel}
+                className="w-64"
+              />
+            )}
             <Button
               variant="outline"
               className="border-yellow/40 bg-yellow/10 text-yellow hover:bg-yellow/20"

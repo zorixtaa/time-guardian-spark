@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAttendanceState } from '@/hooks/useAttendanceState';
+import { useXpSystem } from '@/hooks/useXpSystem';
 import { StateIndicator } from '@/components/attendance/StateIndicator';
 import { ActionButtons } from '@/components/attendance/ActionButtons';
 import {
@@ -19,6 +20,7 @@ import { LogOut, Clock, Coffee, Utensils, Target } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { UserRole } from '@/types/attendance';
+import { XpProgress } from '@/components/xp/XpProgress';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -30,6 +32,37 @@ const Dashboard = () => {
   const [roleLoading, setRoleLoading] = useState(true);
 
   const { state, currentAttendance, activeBreak, refresh } = useAttendanceState(user?.id);
+  const xpState = useXpSystem(user?.id);
+
+  const loadUserRole = useCallback(
+    async (userId: string) => {
+      setRoleLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+
+        setRole((data?.role as UserRole) ?? 'employee');
+      } catch (error: any) {
+        console.error('Error fetching user role:', error);
+        toast({
+          title: 'Unable to determine access level',
+          description: 'Showing the employee dashboard for now.',
+          variant: 'destructive',
+        });
+        setRole('employee');
+      } finally {
+        setRoleLoading(false);
+      }
+    },
+    [toast],
+  );
 
   const loadUserRole = useCallback(
     async (userId: string) => {
@@ -301,14 +334,25 @@ const Dashboard = () => {
               <h1 className="text-2xl font-semibold">Welcome back, {derivedName || user.email}</h1>
             </div>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleSignOut}
-            className="gap-2 border-yellow/40 bg-yellow/10 text-yellow hover:bg-yellow/20"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign out</span>
-          </Button>
+          <div className="flex items-center gap-4">
+            {(xpState.loading || xpState.xpEnabled) && (
+              <XpProgress
+                loading={xpState.loading}
+                level={xpState.level}
+                totalXp={xpState.totalXp}
+                progressPercentage={xpState.progressPercentage}
+                xpToNextLevel={xpState.xpToNextLevel}
+              />
+            )}
+            <Button
+              variant="outline"
+              onClick={handleSignOut}
+              className="gap-2 border-yellow/40 bg-yellow/10 text-yellow hover:bg-yellow/20"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign out</span>
+            </Button>
+          </div>
         </div>
       </header>
 

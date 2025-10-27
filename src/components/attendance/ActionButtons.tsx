@@ -1,13 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { AttendanceState } from '@/types/attendance';
-import { 
-  LogIn, 
-  LogOut, 
-  Coffee, 
-  Utensils,
-  Play,
-  Pause 
-} from 'lucide-react';
+import { LogIn, LogOut, Coffee, Utensils, Pause } from 'lucide-react';
 
 interface ActionButtonsProps {
   state: AttendanceState;
@@ -38,9 +31,11 @@ export const ActionButtons = ({
   const canEndLunch = state === 'on_lunch';
 
   const baseButtonClass =
-    'h-24 flex flex-col items-center justify-center gap-2 rounded-xl transition-all duration-200';
+    'h-24 w-full flex flex-col items-center justify-center gap-2 rounded-xl border transition-all duration-200';
   const glowClass =
     'shadow-[0_0_30px_rgba(234,179,8,0.25)] hover:shadow-[0_0_40px_rgba(234,179,8,0.35)] hover:-translate-y-1';
+  const disabledClass =
+    'border-yellow/20 bg-black/40 text-yellow/40 opacity-60 cursor-not-allowed hover:translate-y-0 hover:shadow-none';
 
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -49,7 +44,12 @@ export const ActionButtons = ({
         onClick={onCheckIn}
         disabled={!canCheckIn || loading}
         size="lg"
-        className={`${baseButtonClass} ${glowClass} bg-yellow text-yellow-foreground`}
+        aria-disabled={!canCheckIn || loading}
+        className={`${baseButtonClass} ${
+          !canCheckIn || loading
+            ? disabledClass
+            : `${glowClass} border-yellow/60 bg-yellow text-yellow-foreground`
+        }`}
       >
         <LogIn className="w-6 h-6" />
         <span>Check In</span>
@@ -60,10 +60,13 @@ export const ActionButtons = ({
         onClick={canStartBreak ? onStartBreak : onEndBreak}
         disabled={(!canStartBreak && !canEndBreak) || loading}
         size="lg"
+        aria-disabled={(!canStartBreak && !canEndBreak) || loading}
         className={`${baseButtonClass} ${
-          canEndBreak
-            ? `${glowClass} bg-yellow text-yellow-foreground`
-            : 'border border-yellow/30 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
+          (!canStartBreak && !canEndBreak) || loading
+            ? disabledClass
+            : canEndBreak
+              ? `${glowClass} border-yellow/60 bg-yellow text-yellow-foreground`
+              : 'border-yellow/40 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
         }`}
       >
         {canEndBreak ? <Pause className="w-6 h-6" /> : <Coffee className="w-6 h-6" />}
@@ -75,10 +78,13 @@ export const ActionButtons = ({
         onClick={canStartLunch ? onStartLunch : onEndLunch}
         disabled={(!canStartLunch && !canEndLunch) || loading}
         size="lg"
+        aria-disabled={(!canStartLunch && !canEndLunch) || loading}
         className={`${baseButtonClass} ${
-          canEndLunch
-            ? `${glowClass} bg-yellow text-yellow-foreground`
-            : 'border border-yellow/30 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
+          (!canStartLunch && !canEndLunch) || loading
+            ? disabledClass
+            : canEndLunch
+              ? `${glowClass} border-yellow/60 bg-yellow text-yellow-foreground`
+              : 'border-yellow/40 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
         }`}
       >
         {canEndLunch ? <Pause className="w-6 h-6" /> : <Utensils className="w-6 h-6" />}
@@ -90,7 +96,12 @@ export const ActionButtons = ({
         onClick={onCheckOut}
         disabled={!canCheckOut || loading}
         size="lg"
-        className={`${baseButtonClass} border border-yellow/30 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]`}
+        aria-disabled={!canCheckOut || loading}
+        className={`${baseButtonClass} ${
+          !canCheckOut || loading
+            ? disabledClass
+            : 'border-yellow/40 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
+        }`}
       >
         <LogOut className="w-6 h-6" />
         <span>Check Out</span>
