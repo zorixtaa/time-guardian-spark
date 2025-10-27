@@ -106,7 +106,7 @@ const Dashboard = () => {
         title: 'Checked In!',
         description: 'Your shift has started',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -119,7 +119,14 @@ const Dashboard = () => {
   };
 
   const handleCheckOut = async () => {
-    if (!currentAttendance) return;
+    if (!currentAttendance) {
+      toast({
+        title: 'No active shift found',
+        description: 'Please check in before attempting to check out.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await checkOut(currentAttendance.id);
@@ -127,7 +134,7 @@ const Dashboard = () => {
         title: 'Checked Out!',
         description: 'Have a great day!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -148,7 +155,7 @@ const Dashboard = () => {
         title: 'Break Started',
         description: 'Take your time!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -161,7 +168,14 @@ const Dashboard = () => {
   };
 
   const handleEndBreak = async () => {
-    if (!activeBreak) return;
+    if (!activeBreak) {
+      toast({
+        title: 'No active break',
+        description: 'Start a break first to be able to end it.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await endBreak(activeBreak.id);
@@ -169,7 +183,7 @@ const Dashboard = () => {
         title: 'Break Ended',
         description: 'Welcome back!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -190,7 +204,7 @@ const Dashboard = () => {
         title: 'Lunch Break',
         description: 'Enjoy your meal!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -203,7 +217,14 @@ const Dashboard = () => {
   };
 
   const handleEndLunch = async () => {
-    if (!activeBreak) return;
+    if (!activeBreak) {
+      toast({
+        title: 'No active lunch break',
+        description: 'Start a lunch break before ending it.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await endLunch(activeBreak.id);
@@ -211,7 +232,7 @@ const Dashboard = () => {
         title: 'Lunch Ended',
         description: 'Back to work!',
       });
-      refresh();
+      await refresh();
     } catch (error: any) {
       toast({
         title: 'Error',
