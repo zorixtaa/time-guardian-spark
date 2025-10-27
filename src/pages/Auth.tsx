@@ -78,13 +78,13 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-black/80 px-4 text-foreground">
+      <div className="w-full max-w-sm space-y-8 rounded-3xl border border-yellow/10 bg-black/40 p-8 shadow-[0_0_35px_rgba(234,179,8,0.15)] backdrop-blur">
         {/* Logo */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-yellow mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-yellow/20 text-yellow mb-4">
             <svg
-              className="w-6 h-6 text-white"
+              className="w-6 h-6 text-yellow"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -98,7 +98,7 @@ const Auth = () => {
             </svg>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Market Wave</h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground/80">
             {isSignUp ? 'Create your account' : 'Welcome back'}
           </p>
         </div>
@@ -113,11 +113,11 @@ const Auth = () => {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 required
-                className="h-11 bg-background border-border"
+                className="h-11 rounded-xl border border-yellow/20 bg-black/40 text-foreground placeholder:text-muted-foreground"
               />
             </div>
           )}
-          
+
           <div className="space-y-2">
             <Input
               type="email"
@@ -125,7 +125,7 @@ const Auth = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="h-11 bg-background border-border"
+              className="h-11 rounded-xl border border-yellow/20 bg-black/40 text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
@@ -137,13 +137,13 @@ const Auth = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="h-11 bg-background border-border"
+              className="h-11 rounded-xl border border-yellow/20 bg-black/40 text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full h-11 bg-gradient-to-r from-primary to-yellow hover:opacity-90 text-white font-medium"
+          <Button
+            type="submit"
+            className="w-full h-12 rounded-xl bg-yellow text-yellow-foreground font-semibold shadow-[0_0_30px_rgba(234,179,8,0.25)] transition-all hover:-translate-y-0.5 hover:bg-yellow/90 hover:shadow-[0_0_40px_rgba(234,179,8,0.35)]"
             disabled={loading}
           >
             {loading ? 'Loading...' : isSignUp ? 'Continue' : 'Sign in'}
@@ -155,7 +155,7 @@ const Auth = () => {
           <button
             type="button"
             onClick={() => setIsSignUp(!isSignUp)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="font-medium text-yellow transition-colors hover:text-yellow/80"
           >
             {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>
