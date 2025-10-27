@@ -52,10 +52,15 @@ export const endBreak = async (breakId: string) => {
       status: 'completed',
     })
     .eq('id', breakId)
+    .is('ended_at', null)
+    .eq('status', 'active')
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+  if (!data) {
+    throw new Error('No active break found to end. It may have already been completed.');
+  }
   return data;
 };
 
