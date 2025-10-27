@@ -39,7 +39,7 @@ interface ActionConfig {
 }
 
 const hasOpenStatus = (record: BreakRecord | null) =>
-  !!record && ['requested', 'approved', 'active'].includes(record.status);
+  !!record && ['requested', 'pending', 'approved', 'active'].includes(record.status);
 
 export const ActionButtons = ({
   state,
@@ -57,11 +57,11 @@ export const ActionButtons = ({
   onEndLunch,
   loading = false,
 }: ActionButtonsProps) => {
-  const breakPending = breakRecord?.status === 'requested';
+  const breakPending = breakRecord ? ['requested', 'pending'].includes(breakRecord.status) : false;
   const breakApproved = breakRecord?.status === 'approved';
   const breakActive = breakRecord?.status === 'active';
 
-  const lunchPending = lunchRecord?.status === 'requested';
+  const lunchPending = lunchRecord ? ['requested', 'pending'].includes(lunchRecord.status) : false;
   const lunchApproved = lunchRecord?.status === 'approved';
   const lunchActive = lunchRecord?.status === 'active';
 

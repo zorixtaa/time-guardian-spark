@@ -11,9 +11,11 @@ export type AttendanceState =
 
 export type BreakStatus =
   | 'requested'
+  | 'pending'
   | 'approved'
   | 'active'
   | 'rejected'
+  | 'denied'
   | 'completed'
   | 'force_ended'
   | 'cancelled';
@@ -34,16 +36,16 @@ export interface AttendanceRecord {
 export interface BreakRecord {
   id: string;
   user_id: string;
-  type: 'scheduled' | 'bathroom' | 'lunch';
+  type: 'scheduled' | 'bathroom' | 'lunch' | 'emergency';
   status: BreakStatus;
   started_at: string | null;
   ended_at: string | null;
   created_at: string;
-  requested_by: string | null;
-  approved_by: string | null;
-  approved_at: string | null;
-  ended_by: string | null;
-  end_reason: string | null;
+  requested_by?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  ended_by?: string | null;
+  end_reason?: string | null;
   shift_id: string | null;
   reason: string | null;
 }

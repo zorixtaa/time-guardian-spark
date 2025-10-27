@@ -106,6 +106,7 @@ interface ManagedBreakRow {
   status: BreakRecord['status'];
   startedAt: string | null;
   approvedAt: string | null;
+  createdAt: string;
 }
 
 interface DepartmentSummary {
@@ -257,10 +258,10 @@ const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) 
         }
 
         if (isSuperAdmin || visibleUserIds.length > 0) {
-          const breaksQuery = supabase
-            .from('breaks')
-            .select('id, user_id, type, status, started_at, approved_at, created_at')
-            .in('status', ['requested', 'approved', 'active']);
+        const breaksQuery = supabase
+          .from('breaks')
+          .select('*')
+          .in('status', ['requested', 'pending', 'approved', 'active']);
 
           if (!isSuperAdmin) {
             breaksQuery.in('user_id', visibleUserIds);
@@ -316,7 +317,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) 
         const roleByUser = new Map<string, UserRole>();
 
         const pendingRequests: BreakRequestRow[] = openBreaks
-          .filter((record) => record.status === 'requested')
+          .filter((record) => record.status === 'requested' || record.status === 'pending')
           .map((record) => ({
             id: record.id,
             userId: record.user_id,
@@ -334,7 +335,8 @@ const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) 
             type: record.type,
             status: record.status,
             startedAt: record.started_at,
-            approvedAt: record.approved_at,
+            approvedAt: record.approved_at ?? null,
+            createdAt: record.created_at,
           }));
 
         setBreakRequests(pendingRequests);
@@ -1072,7 +1074,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) 
                   </TableHeader>
                   <TableBody>
                     {managedBreaks.map((record) => {
-                      const since = record.startedAt ?? record.approvedAt;
+                      const since = record.startedAt ?? record.approvedAt ?? record.createdAt;
                       const statusLabel = record.status === 'approved' ? 'Approved' : 'Active';
                       const badgeClass =
                         record.status === 'active'

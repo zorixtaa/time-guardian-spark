@@ -209,11 +209,24 @@ const Dashboard = () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await requestBreak(user.id);
-      toast({
-        title: 'Break Requested',
-        description: 'Waiting for approval…',
-      });
+      const record = await requestBreak(user.id);
+
+      if (record.status === 'active') {
+        toast({
+          title: 'Break Started',
+          description: 'Take your time!',
+        });
+      } else if (record.status === 'requested' || record.status === 'pending') {
+        toast({
+          title: 'Break Requested',
+          description: 'Waiting for approval…',
+        });
+      } else {
+        toast({
+          title: 'Break updated',
+          description: 'Your break status has been recorded.',
+        });
+      }
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
@@ -227,7 +240,7 @@ const Dashboard = () => {
   };
 
   const handleCancelBreakRequest = async () => {
-    if (!user || !activeBreak || activeBreak.status !== 'requested') {
+    if (!user || !activeBreak || !['requested', 'pending'].includes(activeBreak.status)) {
       toast({
         title: 'No pending break request',
         description: 'Refresh the page and try again.',
@@ -309,11 +322,24 @@ const Dashboard = () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await requestLunch(user.id);
-      toast({
-        title: 'Lunch Requested',
-        description: 'Waiting for approval…',
-      });
+      const record = await requestLunch(user.id);
+
+      if (record.status === 'active') {
+        toast({
+          title: 'Lunch Started',
+          description: 'Enjoy your meal!',
+        });
+      } else if (record.status === 'requested' || record.status === 'pending') {
+        toast({
+          title: 'Lunch Requested',
+          description: 'Waiting for approval…',
+        });
+      } else {
+        toast({
+          title: 'Lunch updated',
+          description: 'Your lunch status has been recorded.',
+        });
+      }
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
@@ -327,7 +353,7 @@ const Dashboard = () => {
   };
 
   const handleCancelLunchRequest = async () => {
-    if (!user || !activeLunch || activeLunch.status !== 'requested') {
+    if (!user || !activeLunch || !['requested', 'pending'].includes(activeLunch.status)) {
       toast({
         title: 'No pending lunch request',
         description: 'Refresh the page and try again.',

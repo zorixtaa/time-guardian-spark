@@ -1,5 +1,19 @@
 import { supabase } from '@/integrations/supabase/client';
 
+const isMissingColumnError = (error: any) => {
+  if (!error) return false;
+  if (error.code === '42703') return true;
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('column') && message.includes('does not exist');
+};
+
+const isConstraintViolation = (error: any) => {
+  if (!error) return false;
+  if (error.code === '23514') return true;
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('violates check constraint') || message.includes('invalid input value for enum');
+};
+
 export const checkIn = async (userId: string) => {
   const { data, error } = await supabase
     .from('attendance')
@@ -28,9 +42,11 @@ export const checkOut = async (attendanceId: string) => {
   return data;
 };
 
-type BreakType = 'scheduled' | 'bathroom' | 'lunch';
+type BreakType = 'scheduled' | 'bathroom' | 'lunch' | 'emergency';
 
 export const requestBreak = async (userId: string, type: BreakType = 'bathroom') => {
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .insert({
@@ -44,24 +60,67 @@ export const requestBreak = async (userId: string, type: BreakType = 'bathroom')
     .select()
     .single();
 
+  if (!error && data) {
+    return data;
+  }
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .insert({
+        user_id: userId,
+        type,
+        status: 'active',
+        started_at: now,
+      })
+      .select()
+      .single();
+
+    if (fallback.error) throw fallback.error;
+    return fallback.data;
+  }
+
   if (error) throw error;
-  return data;
+  throw new Error('Unable to create break request.');
 };
 
 export const cancelBreakRequest = async (userId: string, breakId: string, reason?: string) => {
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
       status: 'cancelled',
-      ended_at: new Date().toISOString(),
+      ended_at: now,
       ended_by: userId,
       end_reason: reason ?? 'Cancelled by employee',
     })
     .eq('id', breakId)
     .eq('user_id', userId)
-    .eq('status', 'requested')
+    .in('status', ['requested', 'pending'])
     .select()
     .maybeSingle();
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .update({
+        status: 'denied',
+        ended_at: now,
+      })
+      .eq('id', breakId)
+      .eq('user_id', userId)
+      .in('status', ['requested', 'pending'])
+      .select()
+      .maybeSingle();
+
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) {
+      throw new Error('No pending request found to cancel.');
+    }
+
+    return fallback.data;
+  }
 
   if (error) throw error;
 
@@ -73,17 +132,38 @@ export const cancelBreakRequest = async (userId: string, breakId: string, reason
 };
 
 export const approveBreak = async (breakId: string, approverId: string) => {
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
       approved_by: approverId,
-      approved_at: new Date().toISOString(),
+      approved_at: now,
       status: 'approved',
     })
     .eq('id', breakId)
-    .eq('status', 'requested')
+    .in('status', ['requested', 'pending'])
     .select()
     .maybeSingle();
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .update({
+        status: 'approved',
+      })
+      .eq('id', breakId)
+      .in('status', ['requested', 'pending'])
+      .select()
+      .maybeSingle();
+
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) {
+      throw new Error('This break request is no longer awaiting approval.');
+    }
+
+    return fallback.data;
+  }
 
   if (error) throw error;
 
@@ -95,18 +175,39 @@ export const approveBreak = async (breakId: string, approverId: string) => {
 };
 
 export const rejectBreak = async (breakId: string, approverId: string, reason?: string) => {
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
       approved_by: approverId,
-      approved_at: new Date().toISOString(),
+      approved_at: now,
       status: 'rejected',
       end_reason: reason ?? 'Rejected by admin',
     })
     .eq('id', breakId)
-    .eq('status', 'requested')
+    .in('status', ['requested', 'pending'])
     .select()
     .maybeSingle();
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .update({
+        status: 'denied',
+      })
+      .eq('id', breakId)
+      .in('status', ['requested', 'pending'])
+      .select()
+      .maybeSingle();
+
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) {
+      throw new Error('This break request is no longer awaiting approval.');
+    }
+
+    return fallback.data;
+  }
 
   if (error) throw error;
 
@@ -176,10 +277,12 @@ export const endBreak = async (userId: string, breakId?: string) => {
     throw new Error('No active break found to end. It may have already been completed.');
   }
 
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
-      ended_at: new Date().toISOString(),
+      ended_at: now,
       ended_by: userId,
       end_reason: null,
       status: 'completed',
@@ -189,6 +292,27 @@ export const endBreak = async (userId: string, breakId?: string) => {
     .is('ended_at', null)
     .select()
     .maybeSingle();
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .update({
+        ended_at: now,
+        status: 'completed',
+      })
+      .eq('id', activeBreakId)
+      .eq('status', 'active')
+      .is('ended_at', null)
+      .select()
+      .maybeSingle();
+
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) {
+      throw new Error('No active break found to end. It may have already been completed.');
+    }
+
+    return fallback.data;
+  }
 
   if (error) throw error;
 
@@ -200,10 +324,12 @@ export const endBreak = async (userId: string, breakId?: string) => {
 };
 
 export const forceEndBreak = async (breakId: string, adminId: string, reason?: string) => {
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
-      ended_at: new Date().toISOString(),
+      ended_at: now,
       ended_by: adminId,
       end_reason: reason ?? 'Force ended by admin',
       status: 'force_ended',
@@ -212,6 +338,26 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
     .in('status', ['approved', 'active'])
     .select()
     .maybeSingle();
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .update({
+        ended_at: now,
+        status: 'completed',
+      })
+      .eq('id', breakId)
+      .in('status', ['approved', 'active'])
+      .select()
+      .maybeSingle();
+
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) {
+      throw new Error('Unable to force end this break. It may have already completed.');
+    }
+
+    return fallback.data;
+  }
 
   if (error) throw error;
 
