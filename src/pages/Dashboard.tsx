@@ -64,6 +64,36 @@ const Dashboard = () => {
     [toast],
   );
 
+  const loadUserRole = useCallback(
+    async (userId: string) => {
+      setRoleLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+
+        setRole((data?.role as UserRole) ?? 'employee');
+      } catch (error: any) {
+        console.error('Error fetching user role:', error);
+        toast({
+          title: 'Unable to determine access level',
+          description: 'Showing the employee dashboard for now.',
+          variant: 'destructive',
+        });
+        setRole('employee');
+      } finally {
+        setRoleLoading(false);
+      }
+    },
+    [toast],
+  );
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
