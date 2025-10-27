@@ -11,7 +11,13 @@ export const useAttendanceState = (userId: string | undefined) => {
   const { toast } = useToast();
 
   const fetchCurrentState = async () => {
-    if (!userId) return;
+    if (!userId) {
+      setState('not_checked_in');
+      setCurrentAttendance(null);
+      setActiveBreak(null);
+      setLoading(false);
+      return;
+    }
 
     try {
       // Get today's attendance record
@@ -31,6 +37,7 @@ export const useAttendanceState = (userId: string | undefined) => {
       if (!attendance) {
         setState('not_checked_in');
         setCurrentAttendance(null);
+        setActiveBreak(null);
         return;
       }
 
@@ -38,6 +45,7 @@ export const useAttendanceState = (userId: string | undefined) => {
 
       if (attendance.clock_out_at) {
         setState('checked_out');
+        setActiveBreak(null);
         return;
       }
 
@@ -46,7 +54,7 @@ export const useAttendanceState = (userId: string | undefined) => {
         .from('breaks')
         .select('*')
         .eq('user_id', userId)
-        .eq('status', 'active')
+        .is('ended_at', null)
         .order('started_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -57,6 +65,7 @@ export const useAttendanceState = (userId: string | undefined) => {
         setActiveBreak(breaks);
         setState(breaks.type === 'lunch' ? 'on_lunch' : 'on_break');
       } else {
+        setActiveBreak(null);
         setState('checked_in');
       }
     } catch (error) {
