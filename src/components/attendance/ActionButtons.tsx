@@ -37,6 +37,11 @@ export const ActionButtons = ({
   const canStartLunch = state === 'checked_in';
   const canEndLunch = state === 'on_lunch';
 
+  const baseButtonClass =
+    'h-24 flex flex-col items-center justify-center gap-2 rounded-xl transition-all duration-200';
+  const glowClass =
+    'shadow-[0_0_30px_rgba(234,179,8,0.25)] hover:shadow-[0_0_40px_rgba(234,179,8,0.35)] hover:-translate-y-1';
+
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Check In */}
@@ -44,7 +49,7 @@ export const ActionButtons = ({
         onClick={onCheckIn}
         disabled={!canCheckIn || loading}
         size="lg"
-        className="h-20 flex flex-col gap-2"
+        className={`${baseButtonClass} ${glowClass} bg-yellow text-yellow-foreground`}
       >
         <LogIn className="w-6 h-6" />
         <span>Check In</span>
@@ -55,8 +60,11 @@ export const ActionButtons = ({
         onClick={canStartBreak ? onStartBreak : onEndBreak}
         disabled={(!canStartBreak && !canEndBreak) || loading}
         size="lg"
-        variant={canEndBreak ? 'destructive' : 'secondary'}
-        className="h-20 flex flex-col gap-2"
+        className={`${baseButtonClass} ${
+          canEndBreak
+            ? `${glowClass} bg-yellow text-yellow-foreground`
+            : 'border border-yellow/30 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
+        }`}
       >
         {canEndBreak ? <Pause className="w-6 h-6" /> : <Coffee className="w-6 h-6" />}
         <span>{canEndBreak ? 'End Break' : 'Start Break'}</span>
@@ -67,8 +75,11 @@ export const ActionButtons = ({
         onClick={canStartLunch ? onStartLunch : onEndLunch}
         disabled={(!canStartLunch && !canEndLunch) || loading}
         size="lg"
-        variant={canEndLunch ? 'destructive' : 'secondary'}
-        className="h-20 flex flex-col gap-2"
+        className={`${baseButtonClass} ${
+          canEndLunch
+            ? `${glowClass} bg-yellow text-yellow-foreground`
+            : 'border border-yellow/30 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
+        }`}
       >
         {canEndLunch ? <Pause className="w-6 h-6" /> : <Utensils className="w-6 h-6" />}
         <span>{canEndLunch ? 'End Lunch' : 'Lunch Break'}</span>
@@ -79,8 +90,7 @@ export const ActionButtons = ({
         onClick={onCheckOut}
         disabled={!canCheckOut || loading}
         size="lg"
-        variant="outline"
-        className="h-20 flex flex-col gap-2"
+        className={`${baseButtonClass} border border-yellow/30 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]`}
       >
         <LogOut className="w-6 h-6" />
         <span>Check Out</span>
