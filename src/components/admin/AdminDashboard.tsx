@@ -40,8 +40,12 @@ import {
   Utensils,
   UserMinus,
   UserPlus,
+  Trash2,
+  UserCog,
 } from 'lucide-react';
 import { AttendanceRecord, BreakRecord, UserRole } from '@/types/attendance';
+import { useXpSystem } from '@/hooks/useXpSystem';
+import { XpProgress } from '@/components/xp/XpProgress';
 
 interface AdminDashboardProps {
   user: User;
@@ -89,6 +93,11 @@ interface RoleRecord {
   role: UserRole;
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+}
+
 const activityLabel: Record<ActivityItem['action'], string> = {
   'checked-in': 'Checked in for the day',
   break: 'Started a break',
@@ -110,11 +119,17 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   const [activityFeed, setActivityFeed] = useState<ActivityItem[]>([]);
   const [departments, setDepartments] = useState<DepartmentSummary[]>([]);
   const [roleRecords, setRoleRecords] = useState<RoleRecord[]>([]);
+  const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [creatingDepartment, setCreatingDepartment] = useState(false);
   const [selectedAdminCandidate, setSelectedAdminCandidate] = useState('');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
   const [removingAdminId, setRemovingAdminId] = useState<string | null>(null);
+  const [selectedAssignmentMember, setSelectedAssignmentMember] = useState('');
+  const [selectedAssignmentDepartment, setSelectedAssignmentDepartment] = useState('');
+  const [assigningDepartment, setAssigningDepartment] = useState(false);
+  const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
+  const xpState = useXpSystem(user.id);
 
   const fetchAdminData = useCallback(
     async (showSpinner = false) => {
@@ -157,6 +172,7 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
         const roles = (rolesRes.data ?? []) as RoleRecord[];
         const teamsData = (teamsRes.data ?? []) as { id: string; name: string }[];
         setRoleRecords(roles);
+        setTeamOptions(teamsData);
 
         const onLunch = activeBreaks.filter((breakRecord) => breakRecord.type === 'lunch').length;
         const onBreak = activeBreaks.length - onLunch;
@@ -244,20 +260,28 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
         });
 
         const unassignedMembers = membersByTeam.get(null) ?? [];
-        if (unassignedMembers.length > 0) {
-          const unassignedIds = new Set(unassignedMembers.map((member) => member.id));
-          departmentSummaries.push({
-            id: 'unassigned',
-            name: 'Unassigned',
-            memberCount: unassignedMembers.length,
-            activeCount: Array.from(unassignedIds).filter(
-              (memberId) => attendanceByUser.has(memberId) || breakByUser.has(memberId),
-            ).length,
-            adminCount: unassignedMembers.filter((member) => roleByUser.get(member.id) === 'admin').length,
-          });
-        }
+        const unassignedIds = new Set(unassignedMembers.map((member) => member.id));
+        const unassignedSummary = {
+          id: 'unassigned',
+          name: 'Unassigned',
+          memberCount: unassignedMembers.length,
+          activeCount: Array.from(unassignedIds).filter(
+            (memberId) => attendanceByUser.has(memberId) || breakByUser.has(memberId),
+          ).length,
+          adminCount: unassignedMembers.filter((member) => roleByUser.get(member.id) === 'admin').length,
+        };
 
-        setDepartments(departmentSummaries);
+        const summariesWithUnassigned = departmentSummaries.filter((dept) => dept.id !== 'unassigned');
+
+        summariesWithUnassigned.push(unassignedSummary);
+
+        summariesWithUnassigned.sort((a, b) => {
+          if (a.id === 'unassigned') return 1;
+          if (b.id === 'unassigned') return -1;
+          return a.name.localeCompare(b.name);
+        });
+
+        setDepartments(summariesWithUnassigned);
 
         const activity: ActivityItem[] = [
           ...attendance.map((record) => ({
@@ -327,6 +351,20 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
   );
 
   const noAdminCandidates = adminCandidates.length === 0;
+
+  const assignmentMembers = useMemo(
+    () => [...teamMembers].sort((a, b) => a.name.localeCompare(b.name)),
+    [teamMembers],
+  );
+
+  const assignmentDepartments = useMemo(() => {
+    const sorted = [...teamOptions].sort((a, b) => a.name.localeCompare(b.name));
+    return [...sorted, { id: '__unassigned', name: 'Unassigned' }];
+  }, [teamOptions]);
+
+  const noAssignmentMembers = assignmentMembers.length === 0;
+  const noDepartmentChoices = teamOptions.length === 0;
+  const hasManagedDepartments = departments.some((department) => department.id !== 'unassigned');
 
   const handleCreateDepartment = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -424,6 +462,117 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
     }
   };
 
+  const handleAssignDepartment = async () => {
+    if (!selectedAssignmentMember || !selectedAssignmentDepartment) {
+      toast({
+        title: 'Select teammate and department',
+        description: 'Choose who should move and where they should go.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const teammate = teamMembers.find((member) => member.id === selectedAssignmentMember);
+    if (!teammate) {
+      toast({
+        title: 'Unknown teammate',
+        description: 'Refresh the dashboard and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const nextDepartmentId =
+      selectedAssignmentDepartment === '__unassigned' ? null : selectedAssignmentDepartment;
+
+    const nextDepartmentName =
+      selectedAssignmentDepartment === '__unassigned'
+        ? 'Unassigned'
+        : teamOptions.find((team) => team.id === selectedAssignmentDepartment)?.name ?? 'Selected department';
+
+    setAssigningDepartment(true);
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ team_id: nextDepartmentId })
+        .eq('id', teammate.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Department updated',
+        description: `${teammate.name} is now part of ${nextDepartmentName}.`,
+      });
+
+      setSelectedAssignmentMember('');
+      setSelectedAssignmentDepartment('');
+      await fetchAdminData();
+    } catch (error: any) {
+      console.error('Failed to assign department', error);
+      toast({
+        title: 'Unable to update department',
+        description: error.message ?? 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAssigningDepartment(false);
+    }
+  };
+
+  const handleDeleteDepartment = async (departmentId: string) => {
+    const department = teamOptions.find((team) => team.id === departmentId);
+
+    if (!department) {
+      toast({
+        title: 'Department not found',
+        description: 'Refresh the dashboard and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      const confirmed = window.confirm(
+        `Delete ${department.name}? Everyone currently assigned will become unassigned.`,
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setDeletingDepartmentId(departmentId);
+
+    try {
+      const { error: resetError } = await supabase
+        .from('profiles')
+        .update({ team_id: null })
+        .eq('team_id', departmentId);
+
+      if (resetError) throw resetError;
+
+      const { error: deleteError } = await supabase.from('teams').delete().eq('id', departmentId);
+
+      if (deleteError) throw deleteError;
+
+      toast({
+        title: 'Department deleted',
+        description: `${department.name} has been removed and members are now unassigned.`,
+      });
+
+      await fetchAdminData();
+    } catch (error: any) {
+      console.error('Failed to delete department', error);
+      toast({
+        title: 'Unable to delete department',
+        description: error.message ?? 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingDepartmentId(null);
+    }
+  };
+
   const handleRemoveAdmin = async (userId: string) => {
     const adminRecord = roleRecords.find((record) => record.user_id === userId && record.role === 'admin');
 
@@ -482,7 +631,17 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
               <h1 className="text-2xl font-semibold">{adminGreeting}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-4">
+            {(xpState.loading || xpState.xpEnabled) && (
+              <XpProgress
+                loading={xpState.loading}
+                level={xpState.level}
+                totalXp={xpState.totalXp}
+                progressPercentage={xpState.progressPercentage}
+                xpToNextLevel={xpState.xpToNextLevel}
+                className="w-64"
+              />
+            )}
             <Button
               variant="outline"
               className="border-yellow/40 bg-yellow/10 text-yellow hover:bg-yellow/20"
@@ -680,8 +839,91 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
                 </div>
               </form>
 
+              <div className="space-y-2">
+                <Label htmlFor="assignment-member" className="text-sm text-muted-foreground">
+                  Assign or move a teammate
+                </Label>
+                <div className="flex flex-col gap-3 lg:flex-row">
+                  <Select
+                    value={selectedAssignmentMember}
+                    onValueChange={setSelectedAssignmentMember}
+                    disabled={noAssignmentMembers || assigningDepartment}
+                  >
+                    <SelectTrigger
+                      id="assignment-member"
+                      className="h-11 w-full rounded-xl border-yellow/20 bg-black/40 text-foreground lg:max-w-xs"
+                    >
+                      <SelectValue
+                        placeholder={
+                          noAssignmentMembers ? 'No teammates available' : 'Choose teammate'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {noAssignmentMembers ? (
+                        <SelectItem value="__no_members" disabled>
+                          No teammates available
+                        </SelectItem>
+                      ) : (
+                        assignmentMembers.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name} · {formatRole(member.role)}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+
+                  <Select
+                    value={selectedAssignmentDepartment}
+                    onValueChange={setSelectedAssignmentDepartment}
+                    disabled={assigningDepartment}
+                  >
+                    <SelectTrigger
+                      id="assignment-department"
+                      className="h-11 w-full rounded-xl border-yellow/20 bg-black/40 text-foreground lg:max-w-xs"
+                    >
+                      <SelectValue
+                        placeholder={
+                          noDepartmentChoices
+                            ? 'Create a department or choose Unassigned'
+                            : 'Choose department'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assignmentDepartments.map((departmentOption) => (
+                        <SelectItem key={departmentOption.id} value={departmentOption.id}>
+                          {departmentOption.id === '__unassigned'
+                            ? 'Unassigned (no department)'
+                            : departmentOption.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    type="button"
+                    onClick={handleAssignDepartment}
+                    className="h-11 rounded-xl bg-yellow text-yellow-foreground hover:bg-yellow/90 lg:w-auto"
+                    disabled={
+                      assigningDepartment ||
+                      noAssignmentMembers ||
+                      !selectedAssignmentMember ||
+                      !selectedAssignmentDepartment
+                    }
+                  >
+                    {assigningDepartment ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCog className="h-4 w-4" />}
+                    <span className="ml-2">Assign</span>
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Promote admins or shuffle employees between departments whenever responsibilities change.
+                </p>
+              </div>
+
               <div className="space-y-3">
-                {departments.length === 0 && (
+                {!hasManagedDepartments && (
                   <p className="text-sm text-muted-foreground">
                     No departments found yet. Create your first department to start organizing teams.
                   </p>
@@ -699,10 +941,34 @@ const AdminDashboard = ({ user, onSignOut }: AdminDashboardProps) => {
                           {department.activeCount} active · {department.memberCount} total teammates
                         </p>
                       </div>
-                      <Badge className="bg-yellow/15 text-yellow">
-                        {department.adminCount} admin{department.adminCount === 1 ? '' : 's'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-yellow/15 text-yellow">
+                          {department.adminCount} admin{department.adminCount === 1 ? '' : 's'}
+                        </Badge>
+                        {department.id !== 'unassigned' && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-yellow hover:bg-yellow/10"
+                            onClick={() => handleDeleteDepartment(department.id)}
+                            disabled={deletingDepartmentId === department.id}
+                            aria-label={`Delete ${department.name}`}
+                          >
+                            {deletingDepartmentId === department.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
+                    {department.id === 'unassigned' && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Assign teammates to a department above to remove them from this list.
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
