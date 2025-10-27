@@ -30,6 +30,7 @@ const Dashboard = () => {
   const [actionLoading, setActionLoading] = useState(false);
   const [role, setRole] = useState<UserRole>('employee');
   const [roleLoading, setRoleLoading] = useState(true);
+  const [userTeamId, setUserTeamId] = useState<string | null>(null);
 
   const {
     state,
@@ -44,17 +45,25 @@ const Dashboard = () => {
     async (userId: string) => {
       setRoleLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
+        const [{ data: roleData, error: roleError }, { data: profileData, error: profileError }] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase.from('profiles').select('team_id').eq('id', userId).maybeSingle(),
+        ]);
 
-        if (error && error.code !== 'PGRST116') {
-          throw error;
+        if (roleError && roleError.code !== 'PGRST116') {
+          throw roleError;
         }
 
-        setRole((data?.role as UserRole) ?? 'employee');
+        if (profileError && profileError.code !== 'PGRST116') {
+          throw profileError;
+        }
+
+        setRole((roleData?.role as UserRole) ?? 'employee');
+        setUserTeamId((profileData?.team_id as string | null) ?? null);
       } catch (error: any) {
         console.error('Error fetching user role:', error);
         toast({
@@ -63,6 +72,7 @@ const Dashboard = () => {
           variant: 'destructive',
         });
         setRole('employee');
+        setUserTeamId(null);
       } finally {
         setRoleLoading(false);
       }
@@ -102,6 +112,15 @@ const Dashboard = () => {
   }, [fetchUserRole, navigate]);
 
   const handleSignOut = async () => {
+    if (state !== 'checked_out' && state !== 'not_checked_in') {
+      toast({
+        title: 'Check out required',
+        description: 'Please end your shift before signing out.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     await supabase.auth.signOut();
     navigate('/auth');
   };
@@ -293,8 +312,15 @@ const Dashboard = () => {
     return null;
   }
 
-  if (effectiveRole === 'super_admin') {
-    return <AdminDashboard user={user} onSignOut={handleSignOut} />;
+  if (effectiveRole === 'super_admin' || effectiveRole === 'admin') {
+    return (
+      <AdminDashboard
+        user={user}
+        onSignOut={handleSignOut}
+        role={effectiveRole}
+        teamId={userTeamId}
+      />
+    );
   }
 
   return (
