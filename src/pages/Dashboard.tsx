@@ -11,10 +11,14 @@ import { ActionButtons } from '@/components/attendance/ActionButtons';
 import {
   checkIn,
   checkOut,
-  startBreak,
+  requestBreak,
+  cancelBreakRequest,
+  startApprovedBreak,
   endBreak,
+  requestLunch,
+  cancelLunchRequest,
   startLunch,
-  endLunch
+  endLunch,
 } from '@/lib/attendanceActions';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Clock, Coffee, Utensils, Target } from 'lucide-react';
@@ -57,6 +61,7 @@ const Dashboard = () => {
     state,
     currentAttendance,
     activeBreak,
+    activeLunch,
     refresh,
     loading: attendanceLoading,
   } = useAttendanceState(user?.id);
@@ -200,11 +205,69 @@ const Dashboard = () => {
     }
   };
 
-  const handleStartBreak = async () => {
+  const handleRequestBreak = async () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await startBreak(user.id);
+      await requestBreak(user.id);
+      toast({
+        title: 'Break Requested',
+        description: 'Waiting for approval…',
+      });
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelBreakRequest = async () => {
+    if (!user || !activeBreak || activeBreak.status !== 'requested') {
+      toast({
+        title: 'No pending break request',
+        description: 'Refresh the page and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await cancelBreakRequest(user.id, activeBreak.id);
+      toast({
+        title: 'Break Request Cancelled',
+        description: 'You can request again anytime.',
+      });
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivateBreak = async () => {
+    if (!activeBreak || activeBreak.status !== 'approved') {
+      toast({
+        title: 'Break not ready',
+        description: 'Wait for approval before starting your break.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await startApprovedBreak(activeBreak.id);
       toast({
         title: 'Break Started',
         description: 'Take your time!',
@@ -225,7 +288,7 @@ const Dashboard = () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await endBreak(user.id, activeBreak?.id);
+      await endBreak(user.id, activeBreak?.id ?? undefined);
       toast({
         title: 'Break Ended',
         description: 'Welcome back!',
@@ -242,13 +305,71 @@ const Dashboard = () => {
     }
   };
 
-  const handleStartLunch = async () => {
+  const handleRequestLunch = async () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await startLunch(user.id);
+      await requestLunch(user.id);
       toast({
-        title: 'Lunch Break',
+        title: 'Lunch Requested',
+        description: 'Waiting for approval…',
+      });
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelLunchRequest = async () => {
+    if (!user || !activeLunch || activeLunch.status !== 'requested') {
+      toast({
+        title: 'No pending lunch request',
+        description: 'Refresh the page and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await cancelLunchRequest(user.id, activeLunch.id);
+      toast({
+        title: 'Lunch Request Cancelled',
+        description: 'You can request lunch again anytime.',
+      });
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivateLunch = async () => {
+    if (!activeLunch || activeLunch.status !== 'approved') {
+      toast({
+        title: 'Lunch not ready',
+        description: 'Wait for approval before starting lunch.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await startLunch(activeLunch.id);
+      toast({
+        title: 'Lunch Started',
         description: 'Enjoy your meal!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
@@ -267,7 +388,7 @@ const Dashboard = () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await endLunch(user.id, activeBreak?.id);
+      await endLunch(user.id, activeLunch?.id ?? undefined);
       toast({
         title: 'Lunch Ended',
         description: 'Back to work!',
@@ -316,6 +437,7 @@ const Dashboard = () => {
     ? 'Calculating…'
     : formatHoursAndMinutes(metrics.breakMinutes);
   const streakDisplay = metricsLoading ? 'Calculating…' : formatDaysLabel(metrics.streakDays);
+  const activeSessionRecord = state === 'on_lunch' ? activeLunch : state === 'on_break' ? activeBreak : null;
 
   if (loading || roleLoading) {
     return (
@@ -398,9 +520,9 @@ const Dashboard = () => {
               </div>
             )}
 
-            {(state === 'on_break' || state === 'on_lunch') && activeBreak && (
+            {activeSessionRecord?.started_at && (
               <div className="text-sm text-muted-foreground">
-                Started at {new Date(activeBreak.started_at).toLocaleTimeString([], {
+                Started at {new Date(activeSessionRecord.started_at).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
@@ -424,11 +546,17 @@ const Dashboard = () => {
             )}
             <ActionButtons
               state={state}
+              breakRecord={activeBreak}
+              lunchRecord={activeLunch}
               onCheckIn={handleCheckIn}
               onCheckOut={handleCheckOut}
-              onStartBreak={handleStartBreak}
+              onRequestBreak={handleRequestBreak}
+              onCancelBreakRequest={handleCancelBreakRequest}
+              onStartBreak={handleActivateBreak}
               onEndBreak={handleEndBreak}
-              onStartLunch={handleStartLunch}
+              onRequestLunch={handleRequestLunch}
+              onCancelLunchRequest={handleCancelLunchRequest}
+              onStartLunch={handleActivateLunch}
               onEndLunch={handleEndLunch}
               loading={actionLoading || attendanceLoading}
             />

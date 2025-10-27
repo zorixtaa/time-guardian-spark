@@ -1,36 +1,79 @@
+import type { ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
-import { AttendanceState } from '@/types/attendance';
-import { LogIn, LogOut, Coffee, Utensils, Pause, Square } from 'lucide-react';
+import type { AttendanceState, BreakRecord } from '@/types/attendance';
+import {
+  LogIn,
+  LogOut,
+  Coffee,
+  Utensils,
+  Pause,
+  Square,
+  Hourglass,
+  CircleOff,
+} from 'lucide-react';
 
 interface ActionButtonsProps {
   state: AttendanceState;
+  breakRecord: BreakRecord | null;
+  lunchRecord: BreakRecord | null;
   onCheckIn: () => void;
   onCheckOut: () => void;
+  onRequestBreak: () => void;
+  onCancelBreakRequest: () => void;
   onStartBreak: () => void;
   onEndBreak: () => void;
+  onRequestLunch: () => void;
+  onCancelLunchRequest: () => void;
   onStartLunch: () => void;
   onEndLunch: () => void;
   loading?: boolean;
 }
 
+interface ActionConfig {
+  key: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  onClick?: () => void;
+  disabled: boolean;
+  emphasis?: boolean;
+}
+
+const hasOpenStatus = (record: BreakRecord | null) =>
+  !!record && ['requested', 'approved', 'active'].includes(record.status);
+
 export const ActionButtons = ({
   state,
+  breakRecord,
+  lunchRecord,
   onCheckIn,
   onCheckOut,
+  onRequestBreak,
+  onCancelBreakRequest,
   onStartBreak,
   onEndBreak,
+  onRequestLunch,
+  onCancelLunchRequest,
   onStartLunch,
   onEndLunch,
   loading = false,
 }: ActionButtonsProps) => {
-  const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
-  const canCheckOut = state === 'checked_in';
-  const canStartBreak = state === 'checked_in';
-  const canEndBreak = state === 'on_break';
-  const canStartLunch = state === 'checked_in';
-  const canEndLunch = state === 'on_lunch';
+  const breakPending = breakRecord?.status === 'requested';
+  const breakApproved = breakRecord?.status === 'approved';
+  const breakActive = breakRecord?.status === 'active';
 
-  const actions = [
+  const lunchPending = lunchRecord?.status === 'requested';
+  const lunchApproved = lunchRecord?.status === 'approved';
+  const lunchActive = lunchRecord?.status === 'active';
+
+  const hasBreakInFlight = hasOpenStatus(breakRecord);
+  const hasLunchInFlight = hasOpenStatus(lunchRecord);
+
+  const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
+  const canCheckOut = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+  const canRequestBreak = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+  const canRequestLunch = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+
+  const actions: ActionConfig[] = [
     {
       key: 'check-in',
       label: 'Check In',
@@ -39,47 +82,106 @@ export const ActionButtons = ({
       disabled: !canCheckIn || loading,
       emphasis: canCheckIn && !loading,
     },
-    {
+  ];
+
+  if (!breakRecord) {
+    actions.push({
+      key: 'request-break',
+      label: 'Request Break',
+      icon: Coffee,
+      onClick: onRequestBreak,
+      disabled: !canRequestBreak || loading,
+      emphasis: canRequestBreak && !loading,
+    });
+  } else if (breakPending) {
+    actions.push({
+      key: 'break-pending',
+      label: 'Break Pending Approval',
+      icon: Hourglass,
+      disabled: true,
+      emphasis: false,
+    });
+    actions.push({
+      key: 'cancel-break',
+      label: 'Cancel Break Request',
+      icon: CircleOff,
+      onClick: onCancelBreakRequest,
+      disabled: loading,
+      emphasis: false,
+    });
+  } else if (breakApproved) {
+    actions.push({
       key: 'start-break',
       label: 'Start Break',
       icon: Coffee,
       onClick: onStartBreak,
-      disabled: !canStartBreak || loading,
-      emphasis: canStartBreak && !loading,
-    },
-    {
+      disabled: loading,
+      emphasis: !loading,
+    });
+  } else if (breakActive) {
+    actions.push({
       key: 'end-break',
       label: 'End Break',
       icon: Pause,
       onClick: onEndBreak,
-      disabled: !canEndBreak || loading,
-      emphasis: canEndBreak && !loading,
-    },
-    {
+      disabled: loading,
+      emphasis: !loading,
+    });
+  }
+
+  if (!lunchRecord) {
+    actions.push({
+      key: 'request-lunch',
+      label: 'Request Lunch',
+      icon: Utensils,
+      onClick: onRequestLunch,
+      disabled: !canRequestLunch || loading,
+      emphasis: canRequestLunch && !loading,
+    });
+  } else if (lunchPending) {
+    actions.push({
+      key: 'lunch-pending',
+      label: 'Lunch Pending Approval',
+      icon: Hourglass,
+      disabled: true,
+      emphasis: false,
+    });
+    actions.push({
+      key: 'cancel-lunch',
+      label: 'Cancel Lunch Request',
+      icon: CircleOff,
+      onClick: onCancelLunchRequest,
+      disabled: loading,
+      emphasis: false,
+    });
+  } else if (lunchApproved) {
+    actions.push({
       key: 'start-lunch',
       label: 'Start Lunch',
       icon: Utensils,
       onClick: onStartLunch,
-      disabled: !canStartLunch || loading,
-      emphasis: canStartLunch && !loading,
-    },
-    {
+      disabled: loading,
+      emphasis: !loading,
+    });
+  } else if (lunchActive) {
+    actions.push({
       key: 'end-lunch',
       label: 'End Lunch',
       icon: Square,
       onClick: onEndLunch,
-      disabled: !canEndLunch || loading,
-      emphasis: canEndLunch && !loading,
-    },
-    {
-      key: 'check-out',
-      label: 'Check Out',
-      icon: LogOut,
-      onClick: onCheckOut,
-      disabled: !canCheckOut || loading,
-      emphasis: canCheckOut && !loading,
-    },
-  ];
+      disabled: loading,
+      emphasis: !loading,
+    });
+  }
+
+  actions.push({
+    key: 'check-out',
+    label: 'Check Out',
+    icon: LogOut,
+    onClick: onCheckOut,
+    disabled: !canCheckOut || loading,
+    emphasis: canCheckOut && !loading,
+  });
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -87,7 +189,7 @@ export const ActionButtons = ({
         <Button
           key={key}
           type="button"
-          onClick={onClick}
+          onClick={onClick ? () => onClick() : undefined}
           disabled={disabled}
           aria-disabled={disabled}
           aria-busy={loading}
