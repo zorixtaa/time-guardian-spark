@@ -30,7 +30,7 @@ export const ActionButtons = ({
   onEndLunch,
   loading = false,
 }: ActionButtonsProps) => {
-  const canCheckIn = state === 'not_checked_in';
+  const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
   const canCheckOut = state === 'checked_in';
   const canStartBreak = state === 'checked_in';
   const canEndBreak = state === 'on_break';
