@@ -31,40 +31,16 @@ const Dashboard = () => {
   const [role, setRole] = useState<UserRole>('employee');
   const [roleLoading, setRoleLoading] = useState(true);
 
-  const { state, currentAttendance, activeBreak, refresh } = useAttendanceState(user?.id);
+  const {
+    state,
+    currentAttendance,
+    activeBreak,
+    refresh,
+    loading: attendanceLoading,
+  } = useAttendanceState(user?.id);
   const xpState = useXpSystem(user?.id);
 
   const fetchUserRole = useCallback(
-    async (userId: string) => {
-      setRoleLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (error && error.code !== 'PGRST116') {
-          throw error;
-        }
-
-        setRole((data?.role as UserRole) ?? 'employee');
-      } catch (error: any) {
-        console.error('Error fetching user role:', error);
-        toast({
-          title: 'Unable to determine access level',
-          description: 'Showing the employee dashboard for now.',
-          variant: 'destructive',
-        });
-        setRole('employee');
-      } finally {
-        setRoleLoading(false);
-      }
-    },
-    [toast],
-  );
-
-  const loadUserRole = useCallback(
     async (userId: string) => {
       setRoleLoading(true);
       try {
@@ -394,7 +370,12 @@ const Dashboard = () => {
               Manage your attendance with a tap
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {attendanceLoading && (
+              <p className="text-sm text-muted-foreground/80">
+                Syncing your latest attendance so the right actions are available…
+              </p>
+            )}
             <ActionButtons
               state={state}
               onCheckIn={handleCheckIn}
@@ -403,7 +384,7 @@ const Dashboard = () => {
               onEndBreak={handleEndBreak}
               onStartLunch={handleStartLunch}
               onEndLunch={handleEndLunch}
-              loading={actionLoading}
+              loading={actionLoading || attendanceLoading}
             />
           </CardContent>
         </Card>

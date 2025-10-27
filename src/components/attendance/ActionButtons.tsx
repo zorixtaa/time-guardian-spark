@@ -30,82 +30,65 @@ export const ActionButtons = ({
   const canStartLunch = state === 'checked_in';
   const canEndLunch = state === 'on_lunch';
 
-  const baseButtonClass =
-    'h-24 w-full flex flex-col items-center justify-center gap-2 rounded-xl border transition-all duration-200';
-  const glowClass =
-    'shadow-[0_0_30px_rgba(234,179,8,0.25)] hover:shadow-[0_0_40px_rgba(234,179,8,0.35)] hover:-translate-y-1';
-  const disabledClass =
-    'border-yellow/20 bg-black/40 text-yellow/40 opacity-60 cursor-not-allowed hover:translate-y-0 hover:shadow-none';
+  const actions = [
+    {
+      key: 'check-in',
+      label: 'Check In',
+      icon: LogIn,
+      onClick: onCheckIn,
+      disabled: !canCheckIn || loading,
+      emphasis: canCheckIn && !loading,
+    },
+    {
+      key: 'break',
+      label: canEndBreak ? 'End Break' : 'Start Break',
+      icon: canEndBreak ? Pause : Coffee,
+      onClick: canEndBreak ? onEndBreak : onStartBreak,
+      disabled: (!canStartBreak && !canEndBreak) || loading,
+      emphasis: canEndBreak && !loading,
+    },
+    {
+      key: 'lunch',
+      label: canEndLunch ? 'End Lunch' : 'Lunch Break',
+      icon: canEndLunch ? Pause : Utensils,
+      onClick: canEndLunch ? onEndLunch : onStartLunch,
+      disabled: (!canStartLunch && !canEndLunch) || loading,
+      emphasis: canEndLunch && !loading,
+    },
+    {
+      key: 'check-out',
+      label: 'Check Out',
+      icon: LogOut,
+      onClick: onCheckOut,
+      disabled: !canCheckOut || loading,
+      emphasis: false,
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Check In */}
-      <Button
-        onClick={onCheckIn}
-        disabled={!canCheckIn || loading}
-        size="lg"
-        aria-disabled={!canCheckIn || loading}
-        className={`${baseButtonClass} ${
-          !canCheckIn || loading
-            ? disabledClass
-            : `${glowClass} border-yellow/60 bg-yellow text-yellow-foreground`
-        }`}
-      >
-        <LogIn className="w-6 h-6" />
-        <span>Check In</span>
-      </Button>
-
-      {/* Break */}
-      <Button
-        onClick={canStartBreak ? onStartBreak : onEndBreak}
-        disabled={(!canStartBreak && !canEndBreak) || loading}
-        size="lg"
-        aria-disabled={(!canStartBreak && !canEndBreak) || loading}
-        className={`${baseButtonClass} ${
-          (!canStartBreak && !canEndBreak) || loading
-            ? disabledClass
-            : canEndBreak
-              ? `${glowClass} border-yellow/60 bg-yellow text-yellow-foreground`
-              : 'border-yellow/40 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
-        }`}
-      >
-        {canEndBreak ? <Pause className="w-6 h-6" /> : <Coffee className="w-6 h-6" />}
-        <span>{canEndBreak ? 'End Break' : 'Start Break'}</span>
-      </Button>
-
-      {/* Lunch */}
-      <Button
-        onClick={canStartLunch ? onStartLunch : onEndLunch}
-        disabled={(!canStartLunch && !canEndLunch) || loading}
-        size="lg"
-        aria-disabled={(!canStartLunch && !canEndLunch) || loading}
-        className={`${baseButtonClass} ${
-          (!canStartLunch && !canEndLunch) || loading
-            ? disabledClass
-            : canEndLunch
-              ? `${glowClass} border-yellow/60 bg-yellow text-yellow-foreground`
-              : 'border-yellow/40 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
-        }`}
-      >
-        {canEndLunch ? <Pause className="w-6 h-6" /> : <Utensils className="w-6 h-6" />}
-        <span>{canEndLunch ? 'End Lunch' : 'Lunch Break'}</span>
-      </Button>
-
-      {/* Check Out */}
-      <Button
-        onClick={onCheckOut}
-        disabled={!canCheckOut || loading}
-        size="lg"
-        aria-disabled={!canCheckOut || loading}
-        className={`${baseButtonClass} ${
-          !canCheckOut || loading
-            ? disabledClass
-            : 'border-yellow/40 bg-yellow/15 text-yellow hover:bg-yellow/25 hover:-translate-y-1 hover:shadow-[0_0_25px_rgba(234,179,8,0.2)]'
-        }`}
-      >
-        <LogOut className="w-6 h-6" />
-        <span>Check Out</span>
-      </Button>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {actions.map(({ key, label, icon: Icon, onClick, disabled, emphasis }) => (
+        <Button
+          key={key}
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          aria-disabled={disabled}
+          aria-busy={loading}
+          className={
+            'flex h-auto min-h-[96px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-yellow/25 bg-black/40 text-sm font-semibold text-yellow transition-colors hover:bg-yellow/20 hover:text-yellow-foreground focus-visible:ring-yellow/60 disabled:cursor-not-allowed disabled:border-yellow/10 disabled:bg-black/20 disabled:text-yellow/40'
+          }
+        >
+          <span
+            className={`flex h-10 w-10 items-center justify-center rounded-full border border-yellow/30 bg-yellow/20 text-yellow ${
+              emphasis ? 'border-yellow/80 bg-yellow text-black shadow-[0_0_18px_rgba(234,179,8,0.45)]' : ''
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          <span>{label}</span>
+        </Button>
+      ))}
     </div>
   );
 };
