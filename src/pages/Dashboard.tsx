@@ -56,6 +56,7 @@ const Dashboard = () => {
   const [role, setRole] = useState<UserRole>('employee');
   const [roleLoading, setRoleLoading] = useState(true);
   const [userTeamId, setUserTeamId] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
 
   const {
     state,
@@ -72,29 +73,99 @@ const Dashboard = () => {
   } = useAttendanceMetrics(user?.id);
   const xpState = useXpSystem(user?.id);
 
+  const ensureProfile = useCallback(
+    async (currentUser: User) => {
+      const fallbackName =
+        (currentUser.user_metadata?.display_name as string | undefined) ||
+        (currentUser.user_metadata?.full_name as string | undefined) ||
+        (currentUser.user_metadata?.name as string | undefined) ||
+        currentUser.email ||
+        'Teammate';
+
+      const { data: existingProfile, error: existingError } = await supabase
+        .from('profiles')
+        .select('id, display_name, team_id')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (existingError) {
+        if (existingError.code === '42P01') {
+          setProfileName(fallbackName);
+          setUserTeamId(null);
+          return null;
+        }
+
+        if (existingError.code !== 'PGRST116') {
+          throw existingError;
+        }
+      }
+
+      if (existingProfile) {
+        setProfileName(existingProfile.display_name ?? fallbackName);
+        setUserTeamId(existingProfile.team_id ?? null);
+        return existingProfile;
+      }
+
+      const { data: insertedProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: currentUser.id,
+          display_name: fallbackName,
+          team_id: null,
+        })
+        .select('id, display_name, team_id')
+        .single();
+
+      if (insertError) {
+        if ((insertError as any).code === '42P01') {
+          setProfileName(fallbackName);
+          setUserTeamId(null);
+          return null;
+        }
+
+        if ((insertError as any).code === '23505') {
+          const { data: retryProfile, error: retryError } = await supabase
+            .from('profiles')
+            .select('id, display_name, team_id')
+            .eq('id', currentUser.id)
+            .single();
+
+          if (retryError) {
+            throw retryError;
+          }
+
+          setProfileName(retryProfile.display_name ?? fallbackName);
+          setUserTeamId(retryProfile.team_id ?? null);
+          return retryProfile;
+        }
+
+        throw insertError;
+      }
+
+      setProfileName(insertedProfile.display_name ?? fallbackName);
+      setUserTeamId(insertedProfile.team_id ?? null);
+      return insertedProfile;
+    },
+    [],
+  );
+
   const fetchUserRole = useCallback(
-    async (userId: string) => {
+    async (currentUser: User) => {
       setRoleLoading(true);
       try {
-        const [{ data: roleData, error: roleError }, { data: profileData, error: profileError }] = await Promise.all([
-          supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', userId)
-            .maybeSingle(),
-          supabase.from('profiles').select('team_id').eq('id', userId).maybeSingle(),
-        ]);
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
 
         if (roleError && roleError.code !== 'PGRST116') {
           throw roleError;
         }
 
-        if (profileError && profileError.code !== 'PGRST116') {
-          throw profileError;
-        }
+        await ensureProfile(currentUser);
 
         setRole((roleData?.role as UserRole) ?? 'employee');
-        setUserTeamId((profileData?.team_id as string | null) ?? null);
       } catch (error: any) {
         console.error('Error fetching user role:', error);
         toast({
@@ -104,11 +175,12 @@ const Dashboard = () => {
         });
         setRole('employee');
         setUserTeamId(null);
+        setProfileName(null);
       } finally {
         setRoleLoading(false);
       }
     },
-    [toast],
+    [ensureProfile, toast],
   );
 
   useEffect(() => {
@@ -117,11 +189,13 @@ const Dashboard = () => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        void fetchUserRole(currentUser.id);
+        void fetchUserRole(currentUser);
       } else {
         setRole('employee');
         setRoleLoading(false);
         navigate('/auth');
+        setProfileName(null);
+        setUserTeamId(null);
       }
       setLoading(false);
     });
@@ -131,11 +205,13 @@ const Dashboard = () => {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
       if (nextUser) {
-        void fetchUserRole(nextUser.id);
+        void fetchUserRole(nextUser);
       } else {
         setRole('employee');
         setRoleLoading(false);
         navigate('/auth');
+        setProfileName(null);
+        setUserTeamId(null);
       }
     });
 
@@ -153,6 +229,8 @@ const Dashboard = () => {
     }
 
     await supabase.auth.signOut();
+    setProfileName(null);
+    setUserTeamId(null);
     navigate('/auth');
   };
 
@@ -433,6 +511,10 @@ const Dashboard = () => {
 
   const derivedName = useMemo(() => {
     if (!user) return '';
+    if (profileName) {
+      return profileName;
+    }
+
     const metadata = user.user_metadata ?? {};
     const possibleName =
       (metadata.full_name as string | undefined) ||
@@ -441,7 +523,7 @@ const Dashboard = () => {
       '';
 
     return (possibleName || user.email || '').toString();
-  }, [user]);
+  }, [profileName, user]);
 
   const isZouhair = useMemo(() => {
     const normalizedName = derivedName.toLowerCase();
@@ -487,6 +569,7 @@ const Dashboard = () => {
         onSignOut={handleSignOut}
         role={effectiveRole}
         teamId={userTeamId}
+        displayName={profileName}
       />
     );
   }

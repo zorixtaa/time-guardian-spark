@@ -61,6 +61,7 @@ interface AdminDashboardProps {
   onSignOut: () => void;
   role: UserRole;
   teamId: string | null;
+  displayName?: string | null;
 }
 
 interface OverviewMetrics {
@@ -140,7 +141,7 @@ const formatRole = (role: UserRole) =>
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ');
 
-const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) => {
+const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDashboardProps) => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -489,6 +490,10 @@ const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) 
   }, [fetchAdminData]);
 
   const adminGreeting = useMemo(() => {
+    if (displayName) {
+      return `Welcome back, ${displayName}!`;
+    }
+
     const fullName =
       (user.user_metadata?.full_name as string | undefined) ||
       (user.user_metadata?.display_name as string | undefined) ||
@@ -496,7 +501,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId }: AdminDashboardProps) 
       user.email;
 
     return fullName ? `Welcome back, ${fullName}!` : 'Welcome back!';
-  }, [user]);
+  }, [displayName, user]);
 
   const adminCandidates = useMemo(
     () => teamMembers.filter((member) => member.role === 'employee'),
