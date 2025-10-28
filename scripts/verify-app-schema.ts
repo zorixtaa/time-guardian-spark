@@ -199,7 +199,7 @@ async function runApplicationSchemaChecks() {
   const breakTypeCheck = await testEnumValues('breaks', 'type', ['coffee', 'wc', 'lunch'])
   checks.push(breakTypeCheck)
 
-  const breakStatusCheck = await testEnumValues('breaks', 'status', ['active', 'completed'])
+  const breakStatusCheck = await testEnumValues('breaks', 'status', ['pending', 'approved', 'denied', 'active', 'completed'])
   checks.push(breakStatusCheck)
 
   // Test enum values for user_roles table

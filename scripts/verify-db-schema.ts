@@ -226,11 +226,13 @@ async function runSchemaChecks() {
   }
 
   if (breakStatusEnumExists) {
-    const correctValues = await checkEnumValues('break_status_enum', ['active', 'completed'])
+    const correctValues = await checkEnumValues('break_status_enum', ['pending', 'approved', 'denied', 'active', 'completed'])
     checks.push({
       name: 'Break status enum values',
       status: correctValues ? 'pass' : 'fail',
-      message: correctValues ? 'Correct values (active, completed)' : 'Incorrect values'
+      message: correctValues
+        ? 'Correct values (pending, approved, denied, active, completed)'
+        : 'Incorrect values'
     })
   }
 
