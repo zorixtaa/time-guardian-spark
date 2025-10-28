@@ -10,6 +10,11 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 // Load environment variables
 config()
@@ -104,7 +109,8 @@ async function applyAllMigrations() {
       '20251028170000_configure_google_oauth.sql',
       '20251028180000_break_approval_system.sql',
       '20251028190000_break_entitlements_and_timing.sql',
-      '20251028200000_fix_schema_coherence.sql'
+      '20251028200000_fix_schema_coherence.sql',
+      '20251028210000_fix_breaks_type_column.sql'
     ]
     
     for (const migration of migrations) {

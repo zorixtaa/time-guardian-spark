@@ -10,6 +10,11 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
 // Load environment variables
 config()
@@ -24,11 +29,11 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-async function applySQL() {
+async function applySQL(sqlFilePath?: string) {
   try {
-    console.log('🚀 Applying complete database setup...\n')
+    console.log('🚀 Applying SQL file...\n')
     
-    const sqlPath = join(__dirname, 'setup-database.sql')
+    const sqlPath = sqlFilePath || join(__dirname, 'setup-database.sql')
     const sql = readFileSync(sqlPath, 'utf8')
     
     // Split the SQL into individual statements
@@ -81,8 +86,11 @@ async function applySQL() {
   }
 }
 
+// Get the SQL file path from command line arguments
+const sqlFilePath = process.argv[2]
+
 // Run the SQL application
-applySQL().catch(error => {
+applySQL(sqlFilePath).catch(error => {
   console.error('❌ Fatal error:', error)
   process.exit(1)
 })
