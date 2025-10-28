@@ -62,8 +62,7 @@ async function listEmployees() {
       .from('teams')
       .select(`
         id,
-        name,
-        description
+        name
       `)
 
     if (teamsError) {
@@ -117,10 +116,9 @@ async function listEmployees() {
       console.log('────────────────────────────────────────────────────────────────────────────────')
       teams.forEach((team, index) => {
         const teamEmployees = profiles.filter(p => p.team_id === team.id)
-        console.log(`${index + 1}. ${team.name}`)
-        console.log(`   📝 Description: ${team.description || 'No description'}`)
-        console.log(`   👥 Members: ${teamEmployees.length}`)
-        console.log('')
+      console.log(`${index + 1}. ${team.name}`)
+      console.log(`   👥 Members: ${teamEmployees.length}`)
+      console.log('')
       })
     }
 
