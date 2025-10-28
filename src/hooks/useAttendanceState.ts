@@ -39,7 +39,7 @@ export const useAttendanceState = (userId: string | undefined) => {
         .limit(1)
         .maybeSingle();
 
-      if (attError) throw attError;
+      if (attError && attError.code !== 'PGRST116') throw attError;
 
       if (!attendance) {
         setState('not_checked_in');
@@ -66,7 +66,7 @@ export const useAttendanceState = (userId: string | undefined) => {
         .is('ended_at', null)
         .order('created_at', { ascending: false });
 
-      if (breakError) throw breakError;
+      if (breakError && breakError.code !== 'PGRST116') throw breakError;
 
       const openBreaks = (breaks ?? []) as BreakRecord[];
       const priority: Record<string, number> = { active: 0, approved: 1, pending: 2 };
@@ -119,11 +119,16 @@ export const useAttendanceState = (userId: string | undefined) => {
       }
 
       setState('checked_in');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching attendance state:', error);
+      // Be resilient to schema mismatches and RLS empty responses
+      setState('not_checked_in');
+      setCurrentAttendance(null);
+      setActiveBreak(null);
+      setActiveLunch(null);
       toast({
         title: 'Error',
-        description: 'Failed to load attendance status',
+        description: error?.message ?? 'Failed to load attendance status',
         variant: 'destructive',
       });
     } finally {

@@ -159,7 +159,7 @@ export const startApprovedBreak = async (breakId: string) => {
       started_at: new Date().toISOString(),
     })
     .eq('id', breakId)
-    .eq('status', 'approved')
+    .in('status', ['approved'])
     .select()
     .maybeSingle();
 
@@ -190,17 +190,35 @@ const resolveActiveBreakId = async (userId: string, breakId?: string) => {
 
   const { data, error } = await supabase
     .from('breaks')
+    .select('id, started_at')
+    .eq('user_id', userId)
+    .is('ended_at', null)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; started_at: string | null }>();
+
+  if (error) throw error;
+
+  // Primary path: explicit active status
+  if (data?.id) {
+    return data.id;
+  }
+
+  // Fallback: some legacy schemas may not update status to 'active'
+  // once started. Try any open record with a non-null started_at.
+  const { data: fallback, error: fallbackError } = await supabase
+    .from('breaks')
     .select('id')
     .eq('user_id', userId)
-    .eq('status', 'active')
     .is('ended_at', null)
+    .not('started_at', 'is', null)
     .order('started_at', { ascending: false })
     .limit(1)
     .maybeSingle<{ id: string }>();
 
-  if (error) throw error;
+  if (fallbackError) throw fallbackError;
 
-  return data?.id ?? null;
+  return fallback?.id ?? null;
 };
 
 export const endBreak = async (userId: string, breakId?: string) => {
@@ -219,7 +237,7 @@ export const endBreak = async (userId: string, breakId?: string) => {
       status: 'completed',
     })
     .eq('id', activeBreakId)
-    .eq('status', 'active')
+    .in('status', ['active', 'approved'])
     .is('ended_at', null)
     .select()
     .maybeSingle();
@@ -227,7 +245,22 @@ export const endBreak = async (userId: string, breakId?: string) => {
   if (error) throw error;
 
   if (!data) {
-    throw new Error('No active break found to end. It may have already been completed.');
+    // Fallback for legacy schemas where status might be unchanged
+    const { data: fallback, error: fallbackError } = await supabase
+      .from('breaks')
+      .update({ ended_at: now, status: 'completed' })
+      .eq('id', activeBreakId)
+      .is('ended_at', null)
+      .select()
+      .maybeSingle();
+
+    if (fallbackError) throw fallbackError;
+
+    if (!fallback) {
+      throw new Error('No active break found to end. It may have already been completed.');
+    }
+
+    return fallback;
   }
 
   return data;
