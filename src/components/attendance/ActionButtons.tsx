@@ -1,90 +1,205 @@
+import type { ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
-import { AttendanceState } from '@/types/attendance';
-import { 
-  LogIn, 
-  LogOut, 
-  Coffee, 
+import type { AttendanceState, BreakRecord } from '@/types/attendance';
+import {
+  LogIn,
+  LogOut,
+  Coffee,
   Utensils,
-  Play,
-  Pause 
+  Pause,
+  Square,
+  CircleOff,
 } from 'lucide-react';
 
 interface ActionButtonsProps {
   state: AttendanceState;
+  breakRecord: BreakRecord | null;
+  lunchRecord: BreakRecord | null;
   onCheckIn: () => void;
   onCheckOut: () => void;
+  onRequestBreak: () => void;
+  onCancelBreakRequest: () => void;
   onStartBreak: () => void;
   onEndBreak: () => void;
+  onRequestLunch: () => void;
+  onCancelLunchRequest: () => void;
   onStartLunch: () => void;
   onEndLunch: () => void;
   loading?: boolean;
 }
 
+interface ActionConfig {
+  key: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+  onClick?: () => void;
+  disabled: boolean;
+  emphasis?: boolean;
+}
+
+const hasOpenStatus = (record: BreakRecord | null) =>
+  !!record && ['requested', 'pending', 'approved', 'active'].includes(record.status);
+
 export const ActionButtons = ({
   state,
+  breakRecord,
+  lunchRecord,
   onCheckIn,
   onCheckOut,
+  onRequestBreak,
+  onCancelBreakRequest,
   onStartBreak,
   onEndBreak,
+  onRequestLunch,
+  onCancelLunchRequest,
   onStartLunch,
   onEndLunch,
   loading = false,
 }: ActionButtonsProps) => {
-  const canCheckIn = state === 'not_checked_in';
-  const canCheckOut = state === 'checked_in';
-  const canStartBreak = state === 'checked_in';
-  const canEndBreak = state === 'on_break';
-  const canStartLunch = state === 'checked_in';
-  const canEndLunch = state === 'on_lunch';
+  const breakPending = breakRecord ? ['requested', 'pending'].includes(breakRecord.status) : false;
+  const breakReadyToStart = breakRecord
+    ? ['requested', 'pending', 'approved'].includes(breakRecord.status)
+    : false;
+  const breakActive = breakRecord?.status === 'active';
+
+  const lunchPending = lunchRecord ? ['requested', 'pending'].includes(lunchRecord.status) : false;
+  const lunchReadyToStart = lunchRecord
+    ? ['requested', 'pending', 'approved'].includes(lunchRecord.status)
+    : false;
+  const lunchActive = lunchRecord?.status === 'active';
+
+  const hasBreakInFlight = hasOpenStatus(breakRecord);
+  const hasLunchInFlight = hasOpenStatus(lunchRecord);
+
+  const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
+  const canCheckOut = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+  const canRequestBreak = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+  const canRequestLunch = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+
+  const actions: ActionConfig[] = [
+    {
+      key: 'check-in',
+      label: 'Check In',
+      icon: LogIn,
+      onClick: onCheckIn,
+      disabled: !canCheckIn || loading,
+      emphasis: canCheckIn && !loading,
+    },
+  ];
+
+  if (!breakRecord) {
+    actions.push({
+      key: 'request-break',
+      label: 'Start Break',
+      icon: Coffee,
+      onClick: onRequestBreak,
+      disabled: !canRequestBreak || loading,
+      emphasis: canRequestBreak && !loading,
+    });
+  } else if (breakActive) {
+    actions.push({
+      key: 'end-break',
+      label: 'End Break',
+      icon: Pause,
+      onClick: onEndBreak,
+      disabled: loading,
+      emphasis: !loading,
+    });
+  } else if (breakReadyToStart) {
+    actions.push({
+      key: 'start-break',
+      label: 'Start Break',
+      icon: Coffee,
+      onClick: onStartBreak,
+      disabled: loading,
+      emphasis: !loading,
+    });
+
+    if (breakPending) {
+      actions.push({
+        key: 'cancel-break',
+        label: 'Cancel Break Request',
+        icon: CircleOff,
+        onClick: onCancelBreakRequest,
+        disabled: loading,
+        emphasis: false,
+      });
+    }
+  }
+
+  if (!lunchRecord) {
+    actions.push({
+      key: 'request-lunch',
+      label: 'Start Lunch Break',
+      icon: Utensils,
+      onClick: onRequestLunch,
+      disabled: !canRequestLunch || loading,
+      emphasis: canRequestLunch && !loading,
+    });
+  } else if (lunchActive) {
+    actions.push({
+      key: 'end-lunch',
+      label: 'End Lunch',
+      icon: Square,
+      onClick: onEndLunch,
+      disabled: loading,
+      emphasis: !loading,
+    });
+  } else if (lunchReadyToStart) {
+    actions.push({
+      key: 'start-lunch',
+      label: 'Start Lunch',
+      icon: Utensils,
+      onClick: onStartLunch,
+      disabled: loading,
+      emphasis: !loading,
+    });
+
+    if (lunchPending) {
+      actions.push({
+        key: 'cancel-lunch',
+        label: 'Cancel Lunch Request',
+        icon: CircleOff,
+        onClick: onCancelLunchRequest,
+        disabled: loading,
+        emphasis: false,
+      });
+    }
+  }
+
+  actions.push({
+    key: 'check-out',
+    label: 'Check Out',
+    icon: LogOut,
+    onClick: onCheckOut,
+    disabled: !canCheckOut || loading,
+    emphasis: canCheckOut && !loading,
+  });
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Check In */}
-      <Button
-        onClick={onCheckIn}
-        disabled={!canCheckIn || loading}
-        size="lg"
-        className="h-20 flex flex-col gap-2"
-      >
-        <LogIn className="w-6 h-6" />
-        <span>Check In</span>
-      </Button>
-
-      {/* Break */}
-      <Button
-        onClick={canStartBreak ? onStartBreak : onEndBreak}
-        disabled={(!canStartBreak && !canEndBreak) || loading}
-        size="lg"
-        variant={canEndBreak ? 'destructive' : 'secondary'}
-        className="h-20 flex flex-col gap-2"
-      >
-        {canEndBreak ? <Pause className="w-6 h-6" /> : <Coffee className="w-6 h-6" />}
-        <span>{canEndBreak ? 'End Break' : 'Start Break'}</span>
-      </Button>
-
-      {/* Lunch */}
-      <Button
-        onClick={canStartLunch ? onStartLunch : onEndLunch}
-        disabled={(!canStartLunch && !canEndLunch) || loading}
-        size="lg"
-        variant={canEndLunch ? 'destructive' : 'secondary'}
-        className="h-20 flex flex-col gap-2"
-      >
-        {canEndLunch ? <Pause className="w-6 h-6" /> : <Utensils className="w-6 h-6" />}
-        <span>{canEndLunch ? 'End Lunch' : 'Lunch Break'}</span>
-      </Button>
-
-      {/* Check Out */}
-      <Button
-        onClick={onCheckOut}
-        disabled={!canCheckOut || loading}
-        size="lg"
-        variant="outline"
-        className="h-20 flex flex-col gap-2"
-      >
-        <LogOut className="w-6 h-6" />
-        <span>Check Out</span>
-      </Button>
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {actions.map(({ key, label, icon: Icon, onClick, disabled, emphasis }) => (
+        <Button
+          key={key}
+          type="button"
+          onClick={onClick ? () => onClick() : undefined}
+          disabled={disabled}
+          aria-disabled={disabled}
+          aria-busy={loading}
+          className={
+            'flex h-auto min-h-[96px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-yellow/25 bg-black/40 text-sm font-semibold text-yellow transition-colors hover:bg-yellow/20 hover:text-yellow-foreground focus-visible:ring-yellow/60 disabled:cursor-not-allowed disabled:border-yellow/10 disabled:bg-black/20 disabled:text-yellow/40'
+          }
+        >
+          <span
+            className={`flex h-10 w-10 items-center justify-center rounded-full border border-yellow/30 bg-yellow/20 text-yellow ${
+              emphasis ? 'border-yellow/80 bg-yellow text-black shadow-[0_0_18px_rgba(234,179,8,0.45)]' : ''
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+          </span>
+          <span>{label}</span>
+        </Button>
+      ))}
     </div>
   );
 };

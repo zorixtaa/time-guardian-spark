@@ -1,22 +1,51 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAttendanceState } from '@/hooks/useAttendanceState';
+import { useAttendanceMetrics } from '@/hooks/useAttendanceMetrics';
+import { useXpSystem } from '@/hooks/useXpSystem';
 import { StateIndicator } from '@/components/attendance/StateIndicator';
 import { ActionButtons } from '@/components/attendance/ActionButtons';
-import { 
-  checkIn, 
-  checkOut, 
-  startBreak, 
-  endBreak, 
-  startLunch, 
-  endLunch 
+import {
+  checkIn,
+  checkOut,
+  requestBreak,
+  cancelBreakRequest,
+  startApprovedBreak,
+  endBreak,
+  requestLunch,
+  cancelLunchRequest,
+  startLunch,
+  endLunch,
 } from '@/lib/attendanceActions';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Clock, Coffee, Utensils, Target } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
+import AdminDashboard from '@/components/admin/AdminDashboard';
+import { UserRole } from '@/types/attendance';
+import { XpProgress } from '@/components/xp/XpProgress';
+
+const formatHoursAndMinutes = (totalMinutes: number) => {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+
+  return `${minutes}m`;
+};
+
+const formatDaysLabel = (days: number) => {
+  const suffix = days === 1 ? 'day' : 'days';
+  return `${days} ${suffix}`;
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -24,32 +53,184 @@ const Dashboard = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [role, setRole] = useState<UserRole>('employee');
+  const [roleLoading, setRoleLoading] = useState(true);
+  const [userTeamId, setUserTeamId] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
 
-  const { state, currentAttendance, activeBreak, refresh } = useAttendanceState(user?.id);
+  const {
+    state,
+    currentAttendance,
+    activeBreak,
+    activeLunch,
+    refresh,
+    loading: attendanceLoading,
+  } = useAttendanceState(user?.id);
+  const {
+    metrics,
+    loading: metricsLoading,
+    refresh: refreshMetrics,
+  } = useAttendanceMetrics(user?.id);
+  const xpState = useXpSystem(user?.id);
+
+  const ensureProfile = useCallback(
+    async (currentUser: User) => {
+      const fallbackName =
+        (currentUser.user_metadata?.display_name as string | undefined) ||
+        (currentUser.user_metadata?.full_name as string | undefined) ||
+        (currentUser.user_metadata?.name as string | undefined) ||
+        currentUser.email ||
+        'Teammate';
+
+      const { data: existingProfile, error: existingError } = await supabase
+        .from('profiles')
+        .select('id, display_name, team_id')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (existingError) {
+        if (existingError.code === '42P01') {
+          setProfileName(fallbackName);
+          setUserTeamId(null);
+          return null;
+        }
+
+        if (existingError.code !== 'PGRST116') {
+          throw existingError;
+        }
+      }
+
+      if (existingProfile) {
+        setProfileName(existingProfile.display_name ?? fallbackName);
+        setUserTeamId(existingProfile.team_id ?? null);
+        return existingProfile;
+      }
+
+      const { data: insertedProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          id: currentUser.id,
+          display_name: fallbackName,
+          team_id: null,
+        })
+        .select('id, display_name, team_id')
+        .single();
+
+      if (insertError) {
+        if ((insertError as any).code === '42P01') {
+          setProfileName(fallbackName);
+          setUserTeamId(null);
+          return null;
+        }
+
+        if ((insertError as any).code === '23505') {
+          const { data: retryProfile, error: retryError } = await supabase
+            .from('profiles')
+            .select('id, display_name, team_id')
+            .eq('id', currentUser.id)
+            .single();
+
+          if (retryError) {
+            throw retryError;
+          }
+
+          setProfileName(retryProfile.display_name ?? fallbackName);
+          setUserTeamId(retryProfile.team_id ?? null);
+          return retryProfile;
+        }
+
+        throw insertError;
+      }
+
+      setProfileName(insertedProfile.display_name ?? fallbackName);
+      setUserTeamId(insertedProfile.team_id ?? null);
+      return insertedProfile;
+    },
+    [],
+  );
+
+  const fetchUserRole = useCallback(
+    async (currentUser: User) => {
+      setRoleLoading(true);
+      try {
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+
+        if (roleError && roleError.code !== 'PGRST116') {
+          throw roleError;
+        }
+
+        await ensureProfile(currentUser);
+
+        setRole((roleData?.role as UserRole) ?? 'employee');
+      } catch (error: any) {
+        console.error('Error fetching user role:', error);
+        toast({
+          title: 'Unable to determine access level',
+          description: 'Showing the employee dashboard for now.',
+          variant: 'destructive',
+        });
+        setRole('employee');
+        setUserTeamId(null);
+        setProfileName(null);
+      } finally {
+        setRoleLoading(false);
+      }
+    },
+    [ensureProfile, toast],
+  );
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
-      if (!session) {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        void fetchUserRole(currentUser);
+      } else {
+        setRole('employee');
+        setRoleLoading(false);
         navigate('/auth');
+        setProfileName(null);
+        setUserTeamId(null);
       }
+      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (!session) {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      if (nextUser) {
+        void fetchUserRole(nextUser);
+      } else {
+        setRole('employee');
+        setRoleLoading(false);
         navigate('/auth');
+        setProfileName(null);
+        setUserTeamId(null);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [fetchUserRole, navigate]);
 
   const handleSignOut = async () => {
+    if (state !== 'checked_out' && state !== 'not_checked_in') {
+      toast({
+        title: 'Check out required',
+        description: 'Please end your shift before signing out.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     await supabase.auth.signOut();
+    setProfileName(null);
+    setUserTeamId(null);
     navigate('/auth');
   };
 
@@ -62,7 +243,7 @@ const Dashboard = () => {
         title: 'Checked In!',
         description: 'Your shift has started',
       });
-      refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -75,7 +256,14 @@ const Dashboard = () => {
   };
 
   const handleCheckOut = async () => {
-    if (!currentAttendance) return;
+    if (!currentAttendance) {
+      toast({
+        title: 'No active shift found',
+        description: 'Please check in before attempting to check out.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setActionLoading(true);
     try {
       await checkOut(currentAttendance.id);
@@ -83,7 +271,7 @@ const Dashboard = () => {
         title: 'Checked Out!',
         description: 'Have a great day!',
       });
-      refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -95,16 +283,89 @@ const Dashboard = () => {
     }
   };
 
-  const handleStartBreak = async () => {
+  const handleRequestBreak = async () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await startBreak(user.id);
+      const record = await requestBreak(user.id, 'bathroom', { autoActivate: true });
+
+      if (record.status === 'active') {
+        toast({
+          title: 'Break Started',
+          description: 'Take your time!',
+        });
+      } else if (record.status === 'requested' || record.status === 'pending') {
+        toast({
+          title: 'Break Requested',
+          description: 'Waiting for approval…',
+        });
+      } else {
+        toast({
+          title: 'Break updated',
+          description: 'Your break status has been recorded.',
+        });
+      }
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelBreakRequest = async () => {
+    if (!user || !activeBreak || !['requested', 'pending'].includes(activeBreak.status)) {
+      toast({
+        title: 'No pending break request',
+        description: 'Refresh the page and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await cancelBreakRequest(user.id, activeBreak.id);
+      toast({
+        title: 'Break Request Cancelled',
+        description: 'You can request again anytime.',
+      });
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivateBreak = async () => {
+    if (!activeBreak || !['approved', 'requested', 'pending'].includes(activeBreak.status)) {
+      toast({
+        title: 'Break not ready',
+        description: 'Wait for approval before starting your break.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await startApprovedBreak(activeBreak.id, {
+        allowPending: activeBreak.status === 'requested' || activeBreak.status === 'pending',
+      });
       toast({
         title: 'Break Started',
         description: 'Take your time!',
       });
-      refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -117,15 +378,15 @@ const Dashboard = () => {
   };
 
   const handleEndBreak = async () => {
-    if (!activeBreak) return;
+    if (!user) return;
     setActionLoading(true);
     try {
-      await endBreak(activeBreak.id);
+      await endBreak(user.id, activeBreak?.id ?? undefined);
       toast({
         title: 'Break Ended',
         description: 'Welcome back!',
       });
-      refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -137,16 +398,89 @@ const Dashboard = () => {
     }
   };
 
-  const handleStartLunch = async () => {
+  const handleRequestLunch = async () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      await startLunch(user.id);
+      const record = await requestLunch(user.id, { autoActivate: true });
+
+      if (record.status === 'active') {
+        toast({
+          title: 'Lunch Started',
+          description: 'Enjoy your meal!',
+        });
+      } else if (record.status === 'requested' || record.status === 'pending') {
+        toast({
+          title: 'Lunch Requested',
+          description: 'Waiting for approval…',
+        });
+      } else {
+        toast({
+          title: 'Lunch updated',
+          description: 'Your lunch status has been recorded.',
+        });
+      }
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
       toast({
-        title: 'Lunch Break',
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelLunchRequest = async () => {
+    if (!user || !activeLunch || !['requested', 'pending'].includes(activeLunch.status)) {
+      toast({
+        title: 'No pending lunch request',
+        description: 'Refresh the page and try again.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await cancelLunchRequest(user.id, activeLunch.id);
+      toast({
+        title: 'Lunch Request Cancelled',
+        description: 'You can request lunch again anytime.',
+      });
+      await Promise.all([refresh(), refreshMetrics()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleActivateLunch = async () => {
+    if (!activeLunch || !['approved', 'requested', 'pending'].includes(activeLunch.status)) {
+      toast({
+        title: 'Lunch not ready',
+        description: 'Wait for approval before starting lunch.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await startLunch(activeLunch.id, {
+        allowPending: activeLunch.status === 'requested' || activeLunch.status === 'pending',
+      });
+      toast({
+        title: 'Lunch Started',
         description: 'Enjoy your meal!',
       });
-      refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -159,15 +493,15 @@ const Dashboard = () => {
   };
 
   const handleEndLunch = async () => {
-    if (!activeBreak) return;
+    if (!user) return;
     setActionLoading(true);
     try {
-      await endLunch(activeBreak.id);
+      await endLunch(user.id, activeLunch?.id ?? undefined);
       toast({
         title: 'Lunch Ended',
         description: 'Back to work!',
       });
-      refresh();
+      await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -179,121 +513,207 @@ const Dashboard = () => {
     }
   };
 
-  if (loading) {
+  const derivedName = useMemo(() => {
+    if (!user) return '';
+    if (profileName) {
+      return profileName;
+    }
+
+    const metadata = user.user_metadata ?? {};
+    const possibleName =
+      (metadata.full_name as string | undefined) ||
+      (metadata.display_name as string | undefined) ||
+      (metadata.name as string | undefined) ||
+      '';
+
+    return (possibleName || user.email || '').toString();
+  }, [profileName, user]);
+
+  const isZouhair = useMemo(() => {
+    const normalizedName = derivedName.toLowerCase();
+    const normalizedEmail = (user?.email ?? '').toLowerCase();
+    return normalizedName.includes('zouhair ouqaf') || normalizedEmail.includes('zouhair');
+  }, [derivedName, user]);
+
+  const effectiveRole = useMemo<UserRole>(() => {
+    if (role === 'super_admin' || isZouhair) {
+      return 'super_admin';
+    }
+    return role;
+  }, [isZouhair, role]);
+
+  const workedTodayDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.workedMinutes);
+  const breakTimeDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.breakMinutes);
+  const streakDisplay = metricsLoading ? 'Calculating…' : formatDaysLabel(metrics.streakDays);
+  const activeSessionRecord = state === 'on_lunch' ? activeLunch : state === 'on_break' ? activeBreak : null;
+
+  if (loading || roleLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-black/80">
+        <div className="text-center text-foreground">
+          <div className="w-16 h-16 border-4 border-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
+  if (effectiveRole === 'super_admin' || effectiveRole === 'admin') {
+    return (
+      <AdminDashboard
+        user={user}
+        onSignOut={handleSignOut}
+        role={effectiveRole}
+        teamId={userTeamId}
+        displayName={profileName}
+      />
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-yellow flex items-center justify-center">
-              <Clock className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-black/80 text-foreground">
+      <header className="border-b border-yellow/10 bg-black/40 backdrop-blur">
+        <div className="container mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-yellow/20 text-yellow">
+              <Clock className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">Market Wave</h1>
-              <p className="text-sm text-muted-foreground">Welcome back, {user?.email}</p>
+              <p className="text-sm uppercase tracking-wide text-yellow/80">Personal Attendance</p>
+              <h1 className="text-2xl font-semibold">Welcome back, {derivedName || user.email}</h1>
             </div>
           </div>
-          <Button variant="outline" onClick={handleSignOut}>
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-4">
+            {(xpState.loading || xpState.xpEnabled) && (
+              <XpProgress
+                loading={xpState.loading}
+                level={xpState.level}
+                totalXp={xpState.totalXp}
+                progressPercentage={xpState.progressPercentage}
+                xpToNextLevel={xpState.xpToNextLevel}
+              />
+            )}
+            <Button
+              variant="outline"
+              onClick={handleSignOut}
+              className="gap-2 border-yellow/40 bg-yellow/10 text-yellow hover:bg-yellow/20"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign out</span>
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
-        {/* Status Card */}
-        <Card>
+      <main className="container mx-auto max-w-4xl space-y-8 px-6 py-10">
+        <Card className="border-yellow/20 bg-card/50 backdrop-blur">
           <CardHeader>
-            <CardTitle>Current Status</CardTitle>
-            <CardDescription>Your real-time attendance state</CardDescription>
+            <CardTitle className="text-lg">Current Status</CardTitle>
+            <CardDescription className="text-muted-foreground/80">
+              Your real-time attendance state
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <StateIndicator state={state} />
-            
+
             {state === 'checked_in' && currentAttendance && (
               <div className="text-sm text-muted-foreground">
-                Checked in at {new Date(currentAttendance.clock_in_at).toLocaleTimeString()}
+                Checked in at {new Date(currentAttendance.clock_in_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </div>
             )}
-            
-            {(state === 'on_break' || state === 'on_lunch') && activeBreak && (
+
+            {activeSessionRecord?.started_at && (
               <div className="text-sm text-muted-foreground">
-                Started at {new Date(activeBreak.started_at).toLocaleTimeString()}
+                Started at {new Date(activeSessionRecord.started_at).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Action Buttons */}
-        <Card>
+        <Card className="border-yellow/20 bg-card/50 backdrop-blur">
           <CardHeader>
-            <CardTitle>Actions</CardTitle>
-            <CardDescription>Manage your attendance</CardDescription>
+            <CardTitle className="text-lg">Actions</CardTitle>
+            <CardDescription className="text-muted-foreground/80">
+              Manage your attendance with a tap
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {attendanceLoading && (
+              <p className="text-sm text-muted-foreground/80">
+                Syncing your latest attendance so the right actions are available…
+              </p>
+            )}
             <ActionButtons
               state={state}
+              breakRecord={activeBreak}
+              lunchRecord={activeLunch}
               onCheckIn={handleCheckIn}
               onCheckOut={handleCheckOut}
-              onStartBreak={handleStartBreak}
+              onRequestBreak={handleRequestBreak}
+              onCancelBreakRequest={handleCancelBreakRequest}
+              onStartBreak={handleActivateBreak}
               onEndBreak={handleEndBreak}
-              onStartLunch={handleStartLunch}
+              onRequestLunch={handleRequestLunch}
+              onCancelLunchRequest={handleCancelLunchRequest}
+              onStartLunch={handleActivateLunch}
               onEndLunch={handleEndLunch}
-              loading={actionLoading}
+              loading={actionLoading || attendanceLoading}
             />
           </CardContent>
         </Card>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-primary to-yellow/20 flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
+                  <Clock className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Worked Today</p>
-                  <p className="text-2xl font-bold">0h 0m</p>
+                  <p className="text-sm text-muted-foreground/80">Worked Today</p>
+                  <p className="text-2xl font-semibold text-foreground">{workedTodayDisplay}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-yellow/10 flex items-center justify-center">
-                  <Coffee className="w-6 h-6 text-yellow" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
+                  <Coffee className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Break Time</p>
-                  <p className="text-2xl font-bold">0m</p>
+                  <p className="text-sm text-muted-foreground/80">Break Time</p>
+                  <p className="text-2xl font-semibold text-foreground">{breakTimeDisplay}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-yellow to-yellow-light flex items-center justify-center">
-                  <Target className="w-6 h-6 text-yellow-foreground" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
+                  <Target className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Streak</p>
-                  <p className="text-2xl font-bold">0 days</p>
+                  <p className="text-sm text-muted-foreground/80">Streak</p>
+                  <p className="text-2xl font-semibold text-foreground">{streakDisplay}</p>
                 </div>
               </div>
             </CardContent>
