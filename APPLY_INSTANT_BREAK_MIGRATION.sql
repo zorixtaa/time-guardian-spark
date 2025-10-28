@@ -80,7 +80,11 @@ END $$;
 
 -- Step 4: Remove approval-related columns
 ALTER TABLE public.breaks DROP COLUMN IF EXISTS approved_by;
-RAISE NOTICE '✅ Removed approved_by column (no longer needed)';
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Removed approved_by column (no longer needed)';
+END $$;
 
 -- Step 5: Add attendance_id to link breaks to attendance records
 ALTER TABLE public.breaks ADD COLUMN IF NOT EXISTS attendance_id UUID;
@@ -104,7 +108,11 @@ END $$;
 -- Step 6: Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_breaks_attendance_id ON public.breaks(attendance_id);
 CREATE INDEX IF NOT EXISTS idx_breaks_user_active ON public.breaks(user_id, status) WHERE status = 'active';
-RAISE NOTICE '✅ Created performance indexes';
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Created performance indexes';
+END $$;
 
 -- Step 7: Update table and column comments
 COMMENT ON TABLE public.breaks IS 'Instant break tracking - coffee, wc, lunch breaks start/end immediately without approval';
@@ -134,14 +142,20 @@ CREATE TRIGGER set_break_started_at_trigger
   FOR EACH ROW
   EXECUTE FUNCTION public.set_break_started_at();
 
-RAISE NOTICE '✅ Created auto-timestamp trigger';
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Created auto-timestamp trigger';
+END $$;
 
 -- Step 10: Clean up old/invalid break records
 DELETE FROM public.breaks 
 WHERE status = 'denied' 
   OR (status = 'pending' AND created_at < now() - interval '7 days');
 
-RAISE NOTICE '✅ Cleaned up old invalid break records';
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Cleaned up old invalid break records';
+END $$;
 
 -- Step 11: Verify the migration
 DO $$
