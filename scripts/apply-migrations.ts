@@ -28,7 +28,7 @@ async function applyMigration(migrationFile: string) {
   try {
     console.log(`📄 Applying migration: ${migrationFile}`)
     
-    const migrationPath = join(__dirname, '..', 'supabase', 'migrations', migrationFile)
+    const migrationPath = join(process.cwd(), 'supabase', 'migrations', migrationFile)
     const migrationSQL = readFileSync(migrationPath, 'utf8')
     
     // Split the SQL into individual statements

@@ -13,7 +13,7 @@ DROP TYPE IF EXISTS public.break_type_enum CASCADE;
 CREATE TYPE public.break_type_enum AS ENUM ('coffee', 'wc', 'lunch');
 
 -- Update breaks table to use the correct enum
-ALTER TABLE public.breaks ALTER COLUMN type TYPE public.break_type_enum USING type::text::public.break_type_enum;
+ALTER TABLE public.breaks ALTER COLUMN "type" TYPE public.break_type_enum USING "type"::text::public.break_type_enum;
 
 -- =============================================================================
 -- PART 2: FIX BREAK STATUS ENUM
@@ -24,7 +24,7 @@ DROP TYPE IF EXISTS public.break_status_enum CASCADE;
 CREATE TYPE public.break_status_enum AS ENUM ('active', 'completed');
 
 -- Update breaks table to use the correct enum
-ALTER TABLE public.breaks ALTER COLUMN status TYPE public.break_status_enum USING status::text::public.break_status_enum;
+ALTER TABLE public.breaks ALTER COLUMN "status" TYPE public.break_status_enum USING "status"::text::public.break_status_enum;
 
 -- =============================================================================
 -- PART 3: ENSURE BREAKS TABLE HAS ALL REQUIRED COLUMNS
