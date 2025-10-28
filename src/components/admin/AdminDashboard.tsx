@@ -49,8 +49,6 @@ import {
 } from 'lucide-react';
 import { AttendanceRecord, BreakRecord, UserRole } from '@/types/attendance';
 import {
-  approveBreak,
-  rejectBreak,
   forceEndBreak,
 } from '@/lib/attendanceActions';
 import { useXpSystem } from '@/hooks/useXpSystem';
@@ -89,14 +87,6 @@ interface ActivityItem {
   userName: string;
   action: 'checked-in' | 'break' | 'lunch';
   occurredAt: string;
-}
-
-interface BreakRequestRow {
-  id: string;
-  userId: string;
-  userName: string;
-  type: BreakRecord['type'];
-  requestedAt: string;
 }
 
 interface ManagedBreakRow {
@@ -159,10 +149,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
   const [selectedAssignmentDepartment, setSelectedAssignmentDepartment] = useState('');
   const [assigningDepartment, setAssigningDepartment] = useState(false);
   const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
-  const [breakRequests, setBreakRequests] = useState<BreakRequestRow[]>([]);
   const [managedBreaks, setManagedBreaks] = useState<ManagedBreakRow[]>([]);
-  const [approvingBreakId, setApprovingBreakId] = useState<string | null>(null);
-  const [rejectingBreakId, setRejectingBreakId] = useState<string | null>(null);
   const [forceEndingBreakId, setForceEndingBreakId] = useState<string | null>(null);
   const xpState = useXpSystem(user.id);
   const isSuperAdmin = role === 'super_admin';
@@ -316,18 +303,8 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         const breakByUser = new Map(activeBreaks.map((record) => [record.user_id, record]));
         const roleByUser = new Map<string, UserRole>();
 
-        const pendingRequests: BreakRequestRow[] = openBreaks
-          .filter((record) => record.status === 'pending')
-          .map((record) => ({
-            id: record.id,
-            userId: record.user_id,
-            userName: profileMap.get(record.user_id) ?? 'Unknown teammate',
-            type: record.type,
-            requestedAt: record.created_at,
-          }));
-
         const managedBreakRows: ManagedBreakRow[] = openBreaks
-          .filter((record) => record.status === 'approved' || record.status === 'active')
+          .filter((record) => record.status === 'active')
           .map((record) => ({
             id: record.id,
             userId: record.user_id,
@@ -338,7 +315,6 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             createdAt: record.created_at,
           }));
 
-        setBreakRequests(pendingRequests);
         setManagedBreaks(managedBreakRows);
 
         roles.forEach((record) => {
@@ -770,49 +746,6 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
     }
   };
 
-  const handleApproveBreakRequest = async (breakId: string) => {
-    setApprovingBreakId(breakId);
-
-    try {
-      await approveBreak(breakId, user.id);
-      toast({
-        title: 'Break approved',
-        description: 'The teammate can start their break when ready.',
-      });
-      await fetchAdminData();
-    } catch (error: any) {
-      console.error('Failed to approve break', error);
-      toast({
-        title: 'Unable to approve break',
-        description: error.message ?? 'Please try again shortly.',
-        variant: 'destructive',
-      });
-    } finally {
-      setApprovingBreakId(null);
-    }
-  };
-
-  const handleRejectBreakRequest = async (breakId: string) => {
-    setRejectingBreakId(breakId);
-
-    try {
-      await rejectBreak(breakId, user.id);
-      toast({
-        title: 'Break request rejected',
-        description: 'The teammate has been notified their request was declined.',
-      });
-      await fetchAdminData();
-    } catch (error: any) {
-      console.error('Failed to reject break', error);
-      toast({
-        title: 'Unable to reject break',
-        description: error.message ?? 'Please try again shortly.',
-        variant: 'destructive',
-      });
-    } finally {
-      setRejectingBreakId(null);
-    }
-  };
 
   const handleForceEndBreak = async (breakId: string) => {
     setForceEndingBreakId(breakId);
@@ -987,83 +920,15 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Hourglass className="h-5 w-5 text-yellow" />
-                  Break Requests
-                </CardTitle>
-                <CardDescription>Approve or reject time-off requests in real time.</CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {breakRequests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No pending break requests right now.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-yellow/10">
-                      <TableHead className="text-muted-foreground">Teammate</TableHead>
-                      <TableHead className="text-muted-foreground">Type</TableHead>
-                      <TableHead className="text-muted-foreground">Requested</TableHead>
-                      <TableHead className="text-muted-foreground text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {breakRequests.map((request) => (
-                      <TableRow key={request.id} className="border-yellow/10">
-                        <TableCell className="font-medium text-foreground">{request.userName}</TableCell>
-                        <TableCell className="text-sm capitalize text-muted-foreground">{request.type}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {new Date(request.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </TableCell>
-                        <TableCell className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            className="bg-yellow text-yellow-foreground hover:bg-yellow/90"
-                            disabled={approvingBreakId === request.id || refreshing}
-                            onClick={() => handleApproveBreakRequest(request.id)}
-                          >
-                            {approvingBreakId === request.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="h-4 w-4" />
-                            )}
-                            <span>Approve</span>
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-yellow/40 text-yellow hover:bg-yellow/10"
-                            disabled={rejectingBreakId === request.id || refreshing}
-                            onClick={() => handleRejectBreakRequest(request.id)}
-                          >
-                            {rejectingBreakId === request.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Ban className="h-4 w-4" />
-                            )}
-                            <span>Reject</span>
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-yellow/30 bg-card/50 backdrop-blur">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-lg">
                   <Coffee className="h-5 w-5 text-yellow" />
-                  Active &amp; Approved Breaks
+                  Active Breaks
                 </CardTitle>
-                <CardDescription>Monitor ongoing breaks and step in when needed.</CardDescription>
+                <CardDescription>Monitor ongoing breaks and force-end if needed.</CardDescription>
               </div>
             </CardHeader>
             <CardContent>
               {managedBreaks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No active or approved breaks at the moment.</p>
+                <p className="text-sm text-muted-foreground">No active breaks at the moment.</p>
               ) : (
                 <Table>
                   <TableHeader>
@@ -1078,11 +943,8 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
                   <TableBody>
                     {managedBreaks.map((record) => {
                       const since = record.startedAt ?? record.createdAt;
-                      const statusLabel = record.status === 'approved' ? 'Approved' : 'Active';
-                      const badgeClass =
-                        record.status === 'active'
-                          ? 'bg-yellow text-yellow-foreground'
-                          : 'bg-yellow/15 text-yellow';
+                      const statusLabel = 'Active';
+                      const badgeClass = 'bg-yellow text-yellow-foreground';
 
                       return (
                         <TableRow key={record.id} className="border-yellow/10">

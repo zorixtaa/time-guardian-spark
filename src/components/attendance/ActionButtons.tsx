@@ -1,212 +1,187 @@
-import type { ComponentType } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AttendanceState, BreakRecord } from '@/types/attendance';
-import {
-  LogIn,
-  LogOut,
-  Coffee,
-  Utensils,
-  Pause,
-  Square,
-  Hourglass,
-  CircleOff,
-} from 'lucide-react';
+import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ActionButtonsProps {
   state: AttendanceState;
-  breakRecord: BreakRecord | null;
-  lunchRecord: BreakRecord | null;
+  activeBreaks: BreakRecord[];
   onCheckIn: () => void;
   onCheckOut: () => void;
-  onRequestBreak: () => void;
-  onCancelBreakRequest: () => void;
-  onStartBreak: () => void;
-  onEndBreak: () => void;
-  onRequestLunch: () => void;
-  onCancelLunchRequest: () => void;
-  onStartLunch: () => void;
-  onEndLunch: () => void;
+  onToggleCoffee: () => void;
+  onToggleWc: () => void;
+  onToggleLunch: () => void;
   loading?: boolean;
 }
 
-interface ActionConfig {
-  key: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-  onClick?: () => void;
-  disabled: boolean;
-  emphasis?: boolean;
-}
-
-const hasOpenStatus = (record: BreakRecord | null) =>
-  !!record && ['pending', 'approved', 'active'].includes(record.status);
-
 export const ActionButtons = ({
   state,
-  breakRecord,
-  lunchRecord,
+  activeBreaks,
   onCheckIn,
   onCheckOut,
-  onRequestBreak,
-  onCancelBreakRequest,
-  onStartBreak,
-  onEndBreak,
-  onRequestLunch,
-  onCancelLunchRequest,
-  onStartLunch,
-  onEndLunch,
+  onToggleCoffee,
+  onToggleWc,
+  onToggleLunch,
   loading = false,
 }: ActionButtonsProps) => {
-  const breakPending = breakRecord?.status === 'pending';
-  const breakApproved = breakRecord?.status === 'approved';
-  const breakActive = breakRecord?.status === 'active';
-
-  const lunchPending = lunchRecord?.status === 'pending';
-  const lunchApproved = lunchRecord?.status === 'approved';
-  const lunchActive = lunchRecord?.status === 'active';
-
-  const hasBreakInFlight = hasOpenStatus(breakRecord);
-  const hasLunchInFlight = hasOpenStatus(lunchRecord);
-
   const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
-  const canCheckOut = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
-  const canRequestBreak = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
-  const canRequestLunch = state === 'checked_in' && !hasBreakInFlight && !hasLunchInFlight;
+  const canCheckOut = state === 'checked_in' || state.includes('_break');
+  const canUseBreaks = state === 'checked_in' || state.includes('_break');
 
-  const actions: ActionConfig[] = [
-    {
-      key: 'check-in',
-      label: 'Check In',
-      icon: LogIn,
-      onClick: onCheckIn,
-      disabled: !canCheckIn || loading,
-      emphasis: canCheckIn && !loading,
-    },
-  ];
-
-  if (!breakRecord) {
-    actions.push({
-      key: 'request-break',
-      label: 'Request Break',
-      icon: Coffee,
-      onClick: onRequestBreak,
-      disabled: !canRequestBreak || loading,
-      emphasis: canRequestBreak && !loading,
-    });
-  } else if (breakPending) {
-    actions.push({
-      key: 'break-pending',
-      label: 'Break Pending Approval',
-      icon: Hourglass,
-      disabled: true,
-      emphasis: false,
-    });
-    actions.push({
-      key: 'cancel-break',
-      label: 'Cancel Break Request',
-      icon: CircleOff,
-      onClick: onCancelBreakRequest,
-      disabled: loading,
-      emphasis: false,
-    });
-  } else if (breakApproved) {
-    actions.push({
-      key: 'start-break',
-      label: 'Start Break',
-      icon: Coffee,
-      onClick: onStartBreak,
-      disabled: loading,
-      emphasis: !loading,
-    });
-  } else if (breakActive) {
-    actions.push({
-      key: 'end-break',
-      label: 'End Break',
-      icon: Pause,
-      onClick: onEndBreak,
-      disabled: loading,
-      emphasis: !loading,
-    });
-  }
-
-  if (!lunchRecord) {
-    actions.push({
-      key: 'request-lunch',
-      label: 'Request Lunch',
-      icon: Utensils,
-      onClick: onRequestLunch,
-      disabled: !canRequestLunch || loading,
-      emphasis: canRequestLunch && !loading,
-    });
-  } else if (lunchPending) {
-    actions.push({
-      key: 'lunch-pending',
-      label: 'Lunch Pending Approval',
-      icon: Hourglass,
-      disabled: true,
-      emphasis: false,
-    });
-    actions.push({
-      key: 'cancel-lunch',
-      label: 'Cancel Lunch Request',
-      icon: CircleOff,
-      onClick: onCancelLunchRequest,
-      disabled: loading,
-      emphasis: false,
-    });
-  } else if (lunchApproved) {
-    actions.push({
-      key: 'start-lunch',
-      label: 'Start Lunch',
-      icon: Utensils,
-      onClick: onStartLunch,
-      disabled: loading,
-      emphasis: !loading,
-    });
-  } else if (lunchActive) {
-    actions.push({
-      key: 'end-lunch',
-      label: 'End Lunch',
-      icon: Square,
-      onClick: onEndLunch,
-      disabled: loading,
-      emphasis: !loading,
-    });
-  }
-
-  actions.push({
-    key: 'check-out',
-    label: 'Check Out',
-    icon: LogOut,
-    onClick: onCheckOut,
-    disabled: !canCheckOut || loading,
-    emphasis: canCheckOut && !loading,
-  });
+  // Check which breaks are currently active
+  const isCoffeeActive = activeBreaks.some(b => b.type === 'coffee');
+  const isWcActive = activeBreaks.some(b => b.type === 'wc');
+  const isLunchActive = activeBreaks.some(b => b.type === 'lunch');
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {actions.map(({ key, label, icon: Icon, onClick, disabled, emphasis }) => (
+    <div className="space-y-4">
+      {/* Primary Actions: Check In / Check Out */}
+      <div className="grid gap-3 sm:grid-cols-2">
         <Button
-          key={key}
           type="button"
-          onClick={onClick ? () => onClick() : undefined}
-          disabled={disabled}
-          aria-disabled={disabled}
+          onClick={onCheckIn}
+          disabled={!canCheckIn || loading}
+          aria-disabled={!canCheckIn || loading}
           aria-busy={loading}
-          className={
-            'flex h-auto min-h-[96px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-yellow/25 bg-black/40 text-sm font-semibold text-yellow transition-colors hover:bg-yellow/20 hover:text-yellow-foreground focus-visible:ring-yellow/60 disabled:cursor-not-allowed disabled:border-yellow/10 disabled:bg-black/20 disabled:text-yellow/40'
-          }
+          className={cn(
+            'flex h-auto min-h-[96px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-yellow/25 bg-black/40 text-sm font-semibold text-yellow transition-colors hover:bg-yellow/20 hover:text-yellow-foreground focus-visible:ring-yellow/60 disabled:cursor-not-allowed disabled:border-yellow/10 disabled:bg-black/20 disabled:text-yellow/40',
+            canCheckIn && !loading && 'border-yellow/80 bg-yellow/10 shadow-[0_0_18px_rgba(234,179,8,0.25)]'
+          )}
         >
           <span
-            className={`flex h-10 w-10 items-center justify-center rounded-full border border-yellow/30 bg-yellow/20 text-yellow ${
-              emphasis ? 'border-yellow/80 bg-yellow text-black shadow-[0_0_18px_rgba(234,179,8,0.45)]' : ''
-            }`}
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-full border border-yellow/30 bg-yellow/20 text-yellow',
+              canCheckIn && !loading && 'border-yellow/80 bg-yellow text-black shadow-[0_0_18px_rgba(234,179,8,0.45)]'
+            )}
           >
-            <Icon className="h-5 w-5" />
+            <LogIn className="h-5 w-5" />
           </span>
-          <span>{label}</span>
+          <span>Check In</span>
         </Button>
-      ))}
+
+        <Button
+          type="button"
+          onClick={onCheckOut}
+          disabled={!canCheckOut || loading}
+          aria-disabled={!canCheckOut || loading}
+          aria-busy={loading}
+          className={cn(
+            'flex h-auto min-h-[96px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-yellow/25 bg-black/40 text-sm font-semibold text-yellow transition-colors hover:bg-yellow/20 hover:text-yellow-foreground focus-visible:ring-yellow/60 disabled:cursor-not-allowed disabled:border-yellow/10 disabled:bg-black/20 disabled:text-yellow/40',
+            canCheckOut && !loading && 'border-yellow/80 bg-yellow/10 shadow-[0_0_18px_rgba(234,179,8,0.25)]'
+          )}
+        >
+          <span
+            className={cn(
+              'flex h-10 w-10 items-center justify-center rounded-full border border-yellow/30 bg-yellow/20 text-yellow',
+              canCheckOut && !loading && 'border-yellow/80 bg-yellow text-black shadow-[0_0_18px_rgba(234,179,8,0.45)]'
+            )}
+          >
+            <LogOut className="h-5 w-5" />
+          </span>
+          <span>Check Out</span>
+        </Button>
+      </div>
+
+      {/* Break Pictograms - Only show when checked in */}
+      {canUseBreaks && (
+        <div>
+          <div className="mb-2 text-xs uppercase tracking-wide text-yellow/60">Quick Breaks</div>
+          <div className="grid gap-3 grid-cols-3">
+            {/* Coffee Break */}
+            <Button
+              type="button"
+              onClick={onToggleCoffee}
+              disabled={loading}
+              aria-disabled={loading}
+              aria-busy={loading}
+              className={cn(
+                'flex h-auto min-h-[120px] w-full flex-col items-center justify-center gap-3 rounded-xl border transition-all',
+                isCoffeeActive
+                  ? 'border-orange-500/80 bg-orange-500/20 text-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:bg-orange-500/30'
+                  : 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-300',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-14 w-14 items-center justify-center rounded-full border transition-all',
+                  isCoffeeActive
+                    ? 'border-orange-500/80 bg-orange-500 text-black shadow-[0_0_20px_rgba(249,115,22,0.5)]'
+                    : 'border-yellow/30 bg-yellow/15 text-yellow'
+                )}
+              >
+                <Coffee className="h-7 w-7" />
+              </span>
+              <div className="text-center">
+                <div className="text-sm font-semibold">COFFEE</div>
+                <div className="text-xs opacity-70">{isCoffeeActive ? 'End Break' : 'Start Break'}</div>
+              </div>
+            </Button>
+
+            {/* WC Break */}
+            <Button
+              type="button"
+              onClick={onToggleWc}
+              disabled={loading}
+              aria-disabled={loading}
+              aria-busy={loading}
+              className={cn(
+                'flex h-auto min-h-[120px] w-full flex-col items-center justify-center gap-3 rounded-xl border transition-all',
+                isWcActive
+                  ? 'border-blue-500/80 bg-blue-500/20 text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-500/30'
+                  : 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-blue-500/40 hover:bg-blue-500/10 hover:text-blue-300',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-14 w-14 items-center justify-center rounded-full border transition-all',
+                  isWcActive
+                    ? 'border-blue-500/80 bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]'
+                    : 'border-yellow/30 bg-yellow/15 text-yellow'
+                )}
+              >
+                <CircleSlash2 className="h-7 w-7" />
+              </span>
+              <div className="text-center">
+                <div className="text-sm font-semibold">WC</div>
+                <div className="text-xs opacity-70">{isWcActive ? 'End Break' : 'Start Break'}</div>
+              </div>
+            </Button>
+
+            {/* Lunch Break */}
+            <Button
+              type="button"
+              onClick={onToggleLunch}
+              disabled={loading}
+              aria-disabled={loading}
+              aria-busy={loading}
+              className={cn(
+                'flex h-auto min-h-[120px] w-full flex-col items-center justify-center gap-3 rounded-xl border transition-all',
+                isLunchActive
+                  ? 'border-green-500/80 bg-green-500/20 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:bg-green-500/30'
+                  : 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-green-500/40 hover:bg-green-500/10 hover:text-green-300',
+                'disabled:cursor-not-allowed disabled:opacity-50'
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-14 w-14 items-center justify-center rounded-full border transition-all',
+                  isLunchActive
+                    ? 'border-green-500/80 bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.5)]'
+                    : 'border-yellow/30 bg-yellow/15 text-yellow'
+                )}
+              >
+                <UtensilsCrossed className="h-7 w-7" />
+              </span>
+              <div className="text-center">
+                <div className="text-sm font-semibold">LUNCH</div>
+                <div className="text-xs opacity-70">{isLunchActive ? 'End Break' : 'Start Break'}</div>
+              </div>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

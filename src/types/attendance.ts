@@ -1,20 +1,14 @@
 export type AttendanceState =
   | 'not_checked_in'
   | 'checked_in'
-  | 'break_requested'
-  | 'break_approved'
-  | 'on_break'
-  | 'lunch_requested'
-  | 'lunch_approved'
-  | 'on_lunch'
+  | 'on_coffee_break'
+  | 'on_wc_break'
+  | 'on_lunch_break'
   | 'checked_out';
 
-export type BreakStatus =
-  | 'pending'
-  | 'approved'
-  | 'denied'
-  | 'active'
-  | 'completed';
+export type BreakType = 'coffee' | 'wc' | 'lunch';
+
+export type BreakStatus = 'active' | 'completed';
 
 export type UserRole = 'employee' | 'admin' | 'super_admin';
 
@@ -32,13 +26,12 @@ export interface AttendanceRecord {
 export interface BreakRecord {
   id: string;
   user_id: string;
-  type: 'scheduled' | 'bathroom' | 'lunch' | 'emergency';
+  type: BreakType;
   status: BreakStatus;
   started_at: string | null;
   ended_at: string | null;
+  attendance_id: string | null;
   created_at: string;
-  approved_by?: string | null;
-  shift_id: string | null;
   reason: string | null;
   updated_at: string;
 }
