@@ -7,12 +7,6 @@ dotenv.config()
 const supabaseUrl = process.env.VITE_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-if (!supabaseServiceKey) {
-  console.error('❌ SUPABASE_SERVICE_ROLE_KEY not found in environment variables')
-  console.log('Please add SUPABASE_SERVICE_ROLE_KEY to your .env file')
-  process.exit(1)
-}
-
 // Create Supabase client with service role key (bypasses RLS)
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
@@ -25,49 +19,21 @@ async function createSampleData() {
   try {
     console.log('🏗️  Creating sample data for dashboard...\n')
     
-    // Step 1: Create teams/departments
-    console.log('1. Creating teams...')
+    // Step 1: Create teams/departments (already done)
+    console.log('1. Teams already created ✅')
     
-    const teams = [
-      { id: '00000000-0000-0000-0000-000000000001', name: 'Engineering Department' },
-      { id: '00000000-0000-0000-0000-000000000002', name: 'Sales Department' },
-      { id: '00000000-0000-0000-0000-000000000003', name: 'Marketing Department' },
-      { id: '00000000-0000-0000-0000-000000000004', name: 'Customer Support Department' }
-    ]
-    
-    for (const team of teams) {
-      try {
-        const { error } = await supabase
-          .from('teams')
-          .upsert({
-            id: team.id,
-            name: team.name,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-        
-        if (error) {
-          console.log(`❌ Failed to create team ${team.name}: ${error.message}`)
-        } else {
-          console.log(`✅ Created team: ${team.name}`)
-        }
-      } catch (err: any) {
-        console.log(`❌ Error creating team ${team.name}: ${err.message}`)
-      }
-    }
-    
-    // Step 2: Create employee profiles
-    console.log('\n2. Creating employee profiles...')
+    // Step 2: Create sample profiles using individual inserts
+    console.log('2. Creating sample profiles...')
     
     const profiles = [
-      { id: '00000000-0000-0000-0000-000000000011', display_name: 'Alice Johnson', team_id: '00000000-0000-0000-0000-000000000001' },
-      { id: '00000000-0000-0000-0000-000000000012', display_name: 'Bob Smith', team_id: '00000000-0000-0000-0000-000000000001' },
-      { id: '00000000-0000-0000-0000-000000000013', display_name: 'Carol Davis', team_id: '00000000-0000-0000-0000-000000000002' },
-      { id: '00000000-0000-0000-0000-000000000014', display_name: 'David Wilson', team_id: '00000000-0000-0000-0000-000000000003' },
-      { id: '00000000-0000-0000-0000-000000000015', display_name: 'Eva Brown', team_id: '00000000-0000-0000-0000-000000000004' },
-      { id: '00000000-0000-0000-0000-000000000016', display_name: 'Frank Miller', team_id: '00000000-0000-0000-0000-000000000002' },
-      { id: '00000000-0000-0000-0000-000000000017', display_name: 'Grace Lee', team_id: '00000000-0000-0000-0000-000000000003' },
-      { id: '00000000-0000-0000-0000-000000000010', display_name: 'Super Admin', team_id: null }
+      { id: '00000000-0000-0000-0000-000000000011', user_id: '00000000-0000-0000-0000-000000000011', display_name: 'Alice Johnson', team_id: '00000000-0000-0000-0000-000000000001' },
+      { id: '00000000-0000-0000-0000-000000000012', user_id: '00000000-0000-0000-0000-000000000012', display_name: 'Bob Smith', team_id: '00000000-0000-0000-0000-000000000001' },
+      { id: '00000000-0000-0000-0000-000000000013', user_id: '00000000-0000-0000-0000-000000000013', display_name: 'Carol Davis', team_id: '00000000-0000-0000-0000-000000000002' },
+      { id: '00000000-0000-0000-0000-000000000014', user_id: '00000000-0000-0000-0000-000000000014', display_name: 'David Wilson', team_id: '00000000-0000-0000-0000-000000000003' },
+      { id: '00000000-0000-0000-0000-000000000015', user_id: '00000000-0000-0000-0000-000000000015', display_name: 'Eva Brown', team_id: '00000000-0000-0000-0000-000000000004' },
+      { id: '00000000-0000-0000-0000-000000000016', user_id: '00000000-0000-0000-0000-000000000016', display_name: 'Frank Miller', team_id: '00000000-0000-0000-0000-000000000002' },
+      { id: '00000000-0000-0000-0000-000000000017', user_id: '00000000-0000-0000-0000-000000000017', display_name: 'Grace Lee', team_id: '00000000-0000-0000-0000-000000000003' },
+      { id: '00000000-0000-0000-0000-000000000010', user_id: '00000000-0000-0000-0000-000000000010', display_name: 'Super Admin', team_id: null }
     ]
     
     for (const profile of profiles) {
@@ -76,7 +42,7 @@ async function createSampleData() {
           .from('profiles')
           .upsert({
             id: profile.id,
-            user_id: profile.id, // profiles.id should match auth.users.id
+            user_id: profile.user_id,
             display_name: profile.display_name,
             team_id: profile.team_id,
             created_at: new Date().toISOString(),
@@ -84,17 +50,17 @@ async function createSampleData() {
           })
         
         if (error) {
-          console.log(`❌ Failed to create profile for ${profile.display_name}: ${error.message}`)
+          console.log(`❌ Failed to create profile ${profile.display_name}: ${error.message}`)
         } else {
           console.log(`✅ Created profile: ${profile.display_name}`)
         }
       } catch (err: any) {
-        console.log(`❌ Error creating profile for ${profile.display_name}: ${err.message}`)
+        console.log(`❌ Error creating profile ${profile.display_name}: ${err.message}`)
       }
     }
     
-    // Step 2.5: Create user roles
-    console.log('\n2.5. Creating user roles...')
+    // Step 3: Create user roles
+    console.log('\n3. Creating user roles...')
     
     const userRoles = [
       { user_id: '00000000-0000-0000-0000-000000000011', role: 'employee' },
@@ -127,19 +93,15 @@ async function createSampleData() {
       }
     }
     
-    // Step 3: Create some sample attendance records
-    console.log('\n3. Creating sample attendance records...')
-    
-    const today = new Date()
-    const startOfDay = new Date(today)
-    startOfDay.setHours(9, 0, 0, 0) // 9 AM
+    // Step 4: Create sample attendance records
+    console.log('\n4. Creating sample attendance records...')
     
     const attendanceRecords = [
-      { id: '00000000-0000-0000-0000-000000000021', user_id: '00000000-0000-0000-0000-000000000011', clock_in: new Date(startOfDay.getTime() + 0 * 30 * 60000) }, // 9:00 AM
-      { id: '00000000-0000-0000-0000-000000000022', user_id: '00000000-0000-0000-0000-000000000012', clock_in: new Date(startOfDay.getTime() + 1 * 30 * 60000) }, // 9:30 AM
-      { id: '00000000-0000-0000-0000-000000000023', user_id: '00000000-0000-0000-0000-000000000013', clock_in: new Date(startOfDay.getTime() + 2 * 30 * 60000) }, // 10:00 AM
-      { id: '00000000-0000-0000-0000-000000000024', user_id: '00000000-0000-0000-0000-000000000014', clock_in: new Date(startOfDay.getTime() + 3 * 30 * 60000) }, // 10:30 AM
-      { id: '00000000-0000-0000-0000-000000000025', user_id: '00000000-0000-0000-0000-000000000015', clock_in: new Date(startOfDay.getTime() + 4 * 30 * 60000) }, // 11:00 AM
+      { id: '00000000-0000-0000-0000-000000000021', user_id: '00000000-0000-0000-0000-000000000011', clock_in: new Date(Date.now() - 2 * 60 * 60 * 1000) }, // 2 hours ago
+      { id: '00000000-0000-0000-0000-000000000022', user_id: '00000000-0000-0000-0000-000000000012', clock_in: new Date(Date.now() - 1.5 * 60 * 60 * 1000) }, // 1.5 hours ago
+      { id: '00000000-0000-0000-0000-000000000023', user_id: '00000000-0000-0000-0000-000000000013', clock_in: new Date(Date.now() - 1 * 60 * 60 * 1000) }, // 1 hour ago
+      { id: '00000000-0000-0000-0000-000000000024', user_id: '00000000-0000-0000-0000-000000000014', clock_in: new Date(Date.now() - 0.5 * 60 * 60 * 1000) }, // 30 minutes ago
+      { id: '00000000-0000-0000-0000-000000000025', user_id: '00000000-0000-0000-0000-000000000015', clock_in: new Date(Date.now() - 0.25 * 60 * 60 * 1000) } // 15 minutes ago
     ]
     
     for (const record of attendanceRecords) {
@@ -165,8 +127,8 @@ async function createSampleData() {
       }
     }
     
-    // Step 4: Create some sample break records
-    console.log('\n4. Creating sample break records...')
+    // Step 5: Create sample break records
+    console.log('\n5. Creating sample break records...')
     
     const breakRecords = [
       { id: '00000000-0000-0000-0000-000000000031', user_id: '00000000-0000-0000-0000-000000000011', type: 'coffee', status: 'active' },
@@ -182,7 +144,7 @@ async function createSampleData() {
             user_id: record.user_id,
             type: record.type,
             status: record.status,
-            started_at: new Date().toISOString(),
+            started_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 minutes ago
             ended_at: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -198,18 +160,18 @@ async function createSampleData() {
       }
     }
     
-    // Step 5: Verify created data
-    console.log('\n5. Verifying created data...')
+    // Step 6: Verify created data
+    console.log('\n6. Verifying created data...')
     
-    const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('*')
-    const { data: teamsData, error: teamsError } = await supabase.from('teams').select('*')
-    const { data: rolesData, error: rolesError } = await supabase.from('user_roles').select('*')
-    const { data: attendanceData, error: attendanceError } = await supabase.from('attendance').select('*')
-    const { data: breaksData, error: breaksError } = await supabase.from('breaks').select('*')
+    const { data: teamsData } = await supabase.from('teams').select('*')
+    const { data: profilesData } = await supabase.from('profiles').select('*')
+    const { data: rolesData } = await supabase.from('user_roles').select('*')
+    const { data: attendanceData } = await supabase.from('attendance').select('*')
+    const { data: breaksData } = await supabase.from('breaks').select('*')
     
     console.log('✅ Final counts:')
-    console.log(`   - Profiles: ${profilesData?.length || 0}`)
     console.log(`   - Teams: ${teamsData?.length || 0}`)
+    console.log(`   - Profiles: ${profilesData?.length || 0}`)
     console.log(`   - Roles: ${rolesData?.length || 0}`)
     console.log(`   - Attendance: ${attendanceData?.length || 0}`)
     console.log(`   - Breaks: ${breaksData?.length || 0}`)
