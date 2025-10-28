@@ -42,6 +42,34 @@ export interface BreakRecord {
   updated_at: string;
 }
 
+export interface BreakEntitlements {
+  micro_break_used: number;
+  lunch_break_used: number;
+  micro_break_limit: number;
+  lunch_break_limit: number;
+  micro_break_remaining: number;
+  lunch_break_remaining: number;
+}
+
+export interface BreakEligibility {
+  can_request: boolean;
+  reason: string;
+  work_duration_minutes: number;
+  micro_break_remaining: number;
+  lunch_break_remaining: number;
+}
+
+export interface EntitlementNotification {
+  notification_id: string;
+  user_id: string;
+  user_name: string;
+  team_name: string;
+  notification_type: 'micro_break_exceeded' | 'lunch_break_exceeded';
+  entitlement_date: string;
+  exceeded_amount: number;
+  created_at: string;
+}
+
 export interface DailyMetrics {
   worked_time: number; // minutes
   break_time: number; // minutes

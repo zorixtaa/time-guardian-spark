@@ -1,11 +1,13 @@
 import { Button } from '@/components/ui/button';
-import type { AttendanceState, BreakRecord } from '@/types/attendance';
-import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2, Clock } from 'lucide-react';
+import type { AttendanceState, BreakRecord, BreakEntitlements } from '@/types/attendance';
+import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2, Clock, Timer, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ActionButtonsProps {
   state: AttendanceState;
   activeBreaks: BreakRecord[];
+  entitlements: BreakEntitlements | null;
+  workDurationMinutes: number;
   onCheckIn: () => void;
   onCheckOut: () => void;
   onRequestCoffee: () => void;
@@ -17,6 +19,8 @@ interface ActionButtonsProps {
 export const ActionButtons = ({
   state,
   activeBreaks,
+  entitlements,
+  workDurationMinutes,
   onCheckIn,
   onCheckOut,
   onRequestCoffee,
@@ -36,6 +40,25 @@ export const ActionButtons = ({
   const isCoffeePending = currentBreak?.type === 'coffee' && currentBreak?.status === 'pending';
   const isWcPending = currentBreak?.type === 'wc' && currentBreak?.status === 'pending';
   const isLunchPending = currentBreak?.type === 'lunch' && currentBreak?.status === 'pending';
+
+  // Break eligibility checks
+  const canRequestCoffee = canRequestBreaks && 
+    workDurationMinutes >= 60 && 
+    entitlements && 
+    entitlements.micro_break_remaining > 0;
+  
+  const canRequestWc = canRequestBreaks && 
+    workDurationMinutes >= 60 && 
+    entitlements && 
+    entitlements.micro_break_remaining > 0;
+  
+  const canRequestLunch = canRequestBreaks && 
+    workDurationMinutes >= 60 && 
+    entitlements && 
+    entitlements.lunch_break_remaining > 0;
+
+  // Get remaining time until break eligibility
+  const minutesUntilEligible = Math.max(0, 60 - workDurationMinutes);
 
   return (
     <div className="space-y-4">
@@ -89,20 +112,37 @@ export const ActionButtons = ({
       {/* Break Pictograms - Only show when checked in */}
       {state === 'checked_in' && (
         <div>
-          <div className="mb-2 text-xs uppercase tracking-wide text-yellow/60">Quick Breaks</div>
+          <div className="mb-2 text-xs uppercase tracking-wide text-yellow/60">Request Breaks</div>
+          
+          {/* Work duration indicator */}
+          {workDurationMinutes < 60 && (
+            <div className="mb-3 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-3">
+              <div className="flex items-center gap-2 text-yellow-500">
+                <Timer className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  Work for {minutesUntilEligible} more minutes to request breaks
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-3 grid-cols-3">
             {/* Coffee Break */}
             <Button
               type="button"
-              onClick={onToggleCoffee}
-              disabled={loading}
-              aria-disabled={loading}
+              onClick={onRequestCoffee}
+              disabled={loading || !canRequestCoffee || isCoffeePending}
+              aria-disabled={loading || !canRequestCoffee || isCoffeePending}
               aria-busy={loading}
               className={cn(
                 'flex h-auto min-h-[120px] w-full flex-col items-center justify-center gap-3 rounded-xl border transition-all',
                 isCoffeeActive
                   ? 'border-orange-500/80 bg-orange-500/20 text-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.4)] hover:bg-orange-500/30'
-                  : 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-300',
+                  : isCoffeePending
+                  ? 'border-yellow-500/80 bg-yellow-500/20 text-yellow-400'
+                  : canRequestCoffee
+                  ? 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-orange-500/40 hover:bg-orange-500/10 hover:text-orange-300'
+                  : 'border-gray-500/20 bg-gray-500/10 text-gray-500',
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
@@ -111,29 +151,44 @@ export const ActionButtons = ({
                   'flex h-14 w-14 items-center justify-center rounded-full border transition-all',
                   isCoffeeActive
                     ? 'border-orange-500/80 bg-orange-500 text-black shadow-[0_0_20px_rgba(249,115,22,0.5)]'
-                    : 'border-yellow/30 bg-yellow/15 text-yellow'
+                    : isCoffeePending
+                    ? 'border-yellow-500/80 bg-yellow-500 text-black'
+                    : canRequestCoffee
+                    ? 'border-yellow/30 bg-yellow/15 text-yellow'
+                    : 'border-gray-500/30 bg-gray-500/15 text-gray-500'
                 )}
               >
-                <Coffee className="h-7 w-7" />
+                {isCoffeePending ? <Clock className="h-7 w-7" /> : <Coffee className="h-7 w-7" />}
               </span>
               <div className="text-center">
                 <div className="text-sm font-semibold">COFFEE</div>
-                <div className="text-xs opacity-70">{isCoffeeActive ? 'End Break' : 'Start Break'}</div>
+                <div className="text-xs opacity-70">
+                  {isCoffeeActive ? 'On Break' : isCoffeePending ? 'Pending Approval' : canRequestCoffee ? 'Request Break' : 'Not Available'}
+                </div>
+                {entitlements && (
+                  <div className="text-xs text-yellow-500/60 mt-1">
+                    {entitlements.micro_break_remaining}min left
+                  </div>
+                )}
               </div>
             </Button>
 
             {/* WC Break */}
             <Button
               type="button"
-              onClick={onToggleWc}
-              disabled={loading}
-              aria-disabled={loading}
+              onClick={onRequestWc}
+              disabled={loading || !canRequestWc || isWcPending}
+              aria-disabled={loading || !canRequestWc || isWcPending}
               aria-busy={loading}
               className={cn(
                 'flex h-auto min-h-[120px] w-full flex-col items-center justify-center gap-3 rounded-xl border transition-all',
                 isWcActive
                   ? 'border-blue-500/80 bg-blue-500/20 text-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.4)] hover:bg-blue-500/30'
-                  : 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-blue-500/40 hover:bg-blue-500/10 hover:text-blue-300',
+                  : isWcPending
+                  ? 'border-yellow-500/80 bg-yellow-500/20 text-yellow-400'
+                  : canRequestWc
+                  ? 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-blue-500/40 hover:bg-blue-500/10 hover:text-blue-300'
+                  : 'border-gray-500/20 bg-gray-500/10 text-gray-500',
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
@@ -142,29 +197,44 @@ export const ActionButtons = ({
                   'flex h-14 w-14 items-center justify-center rounded-full border transition-all',
                   isWcActive
                     ? 'border-blue-500/80 bg-blue-500 text-white shadow-[0_0_20px_rgba(59,130,246,0.5)]'
-                    : 'border-yellow/30 bg-yellow/15 text-yellow'
+                    : isWcPending
+                    ? 'border-yellow-500/80 bg-yellow-500 text-black'
+                    : canRequestWc
+                    ? 'border-yellow/30 bg-yellow/15 text-yellow'
+                    : 'border-gray-500/30 bg-gray-500/15 text-gray-500'
                 )}
               >
-                <CircleSlash2 className="h-7 w-7" />
+                {isWcPending ? <Clock className="h-7 w-7" /> : <CircleSlash2 className="h-7 w-7" />}
               </span>
               <div className="text-center">
                 <div className="text-sm font-semibold">WC</div>
-                <div className="text-xs opacity-70">{isWcActive ? 'End Break' : 'Start Break'}</div>
+                <div className="text-xs opacity-70">
+                  {isWcActive ? 'On Break' : isWcPending ? 'Pending Approval' : canRequestWc ? 'Request Break' : 'Not Available'}
+                </div>
+                {entitlements && (
+                  <div className="text-xs text-yellow-500/60 mt-1">
+                    {entitlements.micro_break_remaining}min left
+                  </div>
+                )}
               </div>
             </Button>
 
             {/* Lunch Break */}
             <Button
               type="button"
-              onClick={onToggleLunch}
-              disabled={loading}
-              aria-disabled={loading}
+              onClick={onRequestLunch}
+              disabled={loading || !canRequestLunch || isLunchPending}
+              aria-disabled={loading || !canRequestLunch || isLunchPending}
               aria-busy={loading}
               className={cn(
                 'flex h-auto min-h-[120px] w-full flex-col items-center justify-center gap-3 rounded-xl border transition-all',
                 isLunchActive
                   ? 'border-green-500/80 bg-green-500/20 text-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)] hover:bg-green-500/30'
-                  : 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-green-500/40 hover:bg-green-500/10 hover:text-green-300',
+                  : isLunchPending
+                  ? 'border-yellow-500/80 bg-yellow-500/20 text-yellow-400'
+                  : canRequestLunch
+                  ? 'border-yellow/20 bg-black/30 text-yellow/70 hover:border-green-500/40 hover:bg-green-500/10 hover:text-green-300'
+                  : 'border-gray-500/20 bg-gray-500/10 text-gray-500',
                 'disabled:cursor-not-allowed disabled:opacity-50'
               )}
             >
@@ -173,17 +243,45 @@ export const ActionButtons = ({
                   'flex h-14 w-14 items-center justify-center rounded-full border transition-all',
                   isLunchActive
                     ? 'border-green-500/80 bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.5)]'
-                    : 'border-yellow/30 bg-yellow/15 text-yellow'
+                    : isLunchPending
+                    ? 'border-yellow-500/80 bg-yellow-500 text-black'
+                    : canRequestLunch
+                    ? 'border-yellow/30 bg-yellow/15 text-yellow'
+                    : 'border-gray-500/30 bg-gray-500/15 text-gray-500'
                 )}
               >
-                <UtensilsCrossed className="h-7 w-7" />
+                {isLunchPending ? <Clock className="h-7 w-7" /> : <UtensilsCrossed className="h-7 w-7" />}
               </span>
               <div className="text-center">
                 <div className="text-sm font-semibold">LUNCH</div>
-                <div className="text-xs opacity-70">{isLunchActive ? 'End Break' : 'Start Break'}</div>
+                <div className="text-xs opacity-70">
+                  {isLunchActive ? 'On Break' : isLunchPending ? 'Pending Approval' : canRequestLunch ? 'Request Break' : 'Not Available'}
+                </div>
+                {entitlements && (
+                  <div className="text-xs text-yellow-500/60 mt-1">
+                    {entitlements.lunch_break_remaining}min left
+                  </div>
+                )}
               </div>
             </Button>
           </div>
+
+          {/* Show pending break status */}
+          {activeBreaks.length > 0 && currentBreak?.status === 'pending' && (
+            <div className="mt-3 rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-yellow-500" />
+                <div>
+                  <p className="text-sm font-medium text-yellow-500">
+                    {currentBreak.type.charAt(0).toUpperCase() + currentBreak.type.slice(1)} break requested
+                  </p>
+                  <p className="text-xs text-yellow-500/70">
+                    Waiting for admin approval...
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
