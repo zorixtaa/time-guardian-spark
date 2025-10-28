@@ -131,13 +131,13 @@ const Dashboard = () => {
         .single();
 
       if (insertError) {
-        if ((insertError as any).code === '42P01') {
+        if ((insertError as { code: string }).code === '42P01') {
           setProfileName(fallbackName);
           setUserTeamId(null);
           return null;
         }
 
-        if ((insertError as any).code === '23505') {
+        if ((insertError as { code: string }).code === '23505') {
           const { data: retryProfile, error: retryError } = await supabase
             .from('profiles')
             .select('id, display_name, team_id')
@@ -180,7 +180,7 @@ const Dashboard = () => {
         await ensureProfile(currentUser);
 
         setRole((roleData?.role as UserRole) ?? 'employee');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching user role:', error);
         toast({
           title: 'Unable to determine access level',
@@ -258,10 +258,10 @@ const Dashboard = () => {
         description: 'Your shift has started',
       });
       await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -286,10 +286,10 @@ const Dashboard = () => {
         description: 'Have a great day!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -301,7 +301,7 @@ const Dashboard = () => {
     if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'coffee', teamId);
+      const result = await toggleBreak(user.id, currentAttendance.id, 'coffee', userTeamId);
       if (result.action === 'started') {
         toast({
           title: 'Coffee Break Started',
@@ -319,10 +319,10 @@ const Dashboard = () => {
         });
       }
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -334,7 +334,7 @@ const Dashboard = () => {
     if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'wc', teamId);
+      const result = await toggleBreak(user.id, currentAttendance.id, 'wc', userTeamId);
       if (result.action === 'started') {
         toast({
           title: 'WC Break Started',
@@ -352,10 +352,10 @@ const Dashboard = () => {
         });
       }
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
@@ -367,7 +367,7 @@ const Dashboard = () => {
     if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'lunch', teamId);
+      const result = await toggleBreak(user.id, currentAttendance.id, 'lunch', userTeamId);
       if (result.action === 'started') {
         toast({
           title: 'Lunch Break Started',
@@ -385,10 +385,10 @@ const Dashboard = () => {
         });
       }
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
     } finally {
