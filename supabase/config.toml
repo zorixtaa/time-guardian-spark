@@ -1,1 +1,13 @@
 project_id = "elnarrbpsphoxgldzehh"
+
+[auth]
+enabled = true
+site_url = "https://time-guardian-spark.vercel.app"
+additional_redirect_urls = ["https://time-guardian-spark.vercel.app/dashboard"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.external.google]
+enabled = true
+client_id = "1066291262307-8sgl29qov2dibhki15ao1aoscrgtne3n.apps.googleusercontent.com"
+secret = "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"
