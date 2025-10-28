@@ -1,4 +1,4 @@
-# Attendance Tracking System with Gamification
+# Market Wave Attendance System
 
 A comprehensive employee attendance tracking system developed by **Zouhair O**. Built with React, TypeScript, Vite, and Supabase. Features real-time tracking, break management, team administration, and gamification with XP and badges.
 

@@ -1,6 +1,6 @@
 # Analytics & Reporting Guide
 
-This guide covers all the analytics functions available in your attendance tracking system.
+This guide covers all the analytics functions available in your Market Wave Attendance System.
 
 ## Table of Contents
 

@@ -2,7 +2,7 @@
 
 ## What Was Created
 
-I've built a **complete analytics and reporting system** for your attendance tracker with 8 powerful queries, TypeScript integration, and a ready-to-use React dashboard.
+I've built a **complete analytics and reporting system** for your Market Wave Attendance System with 8 powerful queries, TypeScript integration, and a ready-to-use React dashboard.
 
 ---
 

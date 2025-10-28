@@ -97,7 +97,7 @@ const Auth = () => {
               />
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Attendance System</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Market Wave</h1>
           <p className="text-sm text-muted-foreground/80">
             {isSignUp ? 'Create your account' : 'Welcome back'}
           </p>
