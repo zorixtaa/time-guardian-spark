@@ -110,7 +110,9 @@ async function applyAllMigrations() {
       '20251028180000_break_approval_system.sql',
       '20251028190000_break_entitlements_and_timing.sql',
       '20251028200000_fix_schema_coherence.sql',
-      '20251028210000_fix_breaks_type_column.sql'
+      '20251028210000_fix_breaks_type_column.sql',
+      '20251028220000_populate_teams_with_correct_departments.sql',
+      '20251028230000_populate_teams_disable_rls.sql'
     ]
     
     for (const migration of migrations) {
