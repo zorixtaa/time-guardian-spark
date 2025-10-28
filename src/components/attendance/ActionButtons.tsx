@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import type { AttendanceState, BreakRecord } from '@/types/attendance';
-import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2 } from 'lucide-react';
+import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ActionButtonsProps {
@@ -8,9 +8,9 @@ interface ActionButtonsProps {
   activeBreaks: BreakRecord[];
   onCheckIn: () => void;
   onCheckOut: () => void;
-  onToggleCoffee: () => void;
-  onToggleWc: () => void;
-  onToggleLunch: () => void;
+  onRequestCoffee: () => void;
+  onRequestWc: () => void;
+  onRequestLunch: () => void;
   loading?: boolean;
 }
 
@@ -19,19 +19,23 @@ export const ActionButtons = ({
   activeBreaks,
   onCheckIn,
   onCheckOut,
-  onToggleCoffee,
-  onToggleWc,
-  onToggleLunch,
+  onRequestCoffee,
+  onRequestWc,
+  onRequestLunch,
   loading = false,
 }: ActionButtonsProps) => {
   const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
   const canCheckOut = state === 'checked_in' || state.includes('_break');
-  const canUseBreaks = state === 'checked_in' || state.includes('_break');
+  const canRequestBreaks = state === 'checked_in' && activeBreaks.length === 0;
 
-  // Check which breaks are currently active
-  const isCoffeeActive = activeBreaks.some(b => b.type === 'coffee');
-  const isWcActive = activeBreaks.some(b => b.type === 'wc');
-  const isLunchActive = activeBreaks.some(b => b.type === 'lunch');
+  // Check which breaks are currently active or pending
+  const currentBreak = activeBreaks[0]; // Only one break at a time
+  const isCoffeeActive = currentBreak?.type === 'coffee' && currentBreak?.status === 'active';
+  const isWcActive = currentBreak?.type === 'wc' && currentBreak?.status === 'active';
+  const isLunchActive = currentBreak?.type === 'lunch' && currentBreak?.status === 'active';
+  const isCoffeePending = currentBreak?.type === 'coffee' && currentBreak?.status === 'pending';
+  const isWcPending = currentBreak?.type === 'wc' && currentBreak?.status === 'pending';
+  const isLunchPending = currentBreak?.type === 'lunch' && currentBreak?.status === 'pending';
 
   return (
     <div className="space-y-4">
@@ -83,7 +87,7 @@ export const ActionButtons = ({
       </div>
 
       {/* Break Pictograms - Only show when checked in */}
-      {canUseBreaks && (
+      {state === 'checked_in' && (
         <div>
           <div className="mb-2 text-xs uppercase tracking-wide text-yellow/60">Quick Breaks</div>
           <div className="grid gap-3 grid-cols-3">

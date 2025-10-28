@@ -48,34 +48,45 @@ export const useAttendanceState = (userId: string | undefined) => {
         return;
       }
 
-      // Get all active breaks for current attendance
+      // Get all breaks for current attendance (active, pending, approved)
       const { data: breaks, error: breakError } = await supabase
         .from('breaks')
         .select('*')
         .eq('user_id', userId)
         .eq('attendance_id', attendance.id)
-        .eq('status', 'active')
+        .in('status', ['pending', 'approved', 'active'])
         .is('ended_at', null)
-        .order('started_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (breakError) throw breakError;
 
       const currentBreaks = (breaks ?? []) as BreakRecord[];
       setActiveBreaks(currentBreaks);
 
-      // Determine state based on active breaks
-      // Priority: lunch > wc > coffee (if multiple active, show the most recent)
+      // Determine state based on breaks
+      // Only one break can be active at a time
       if (currentBreaks.length > 0) {
-        const mostRecentBreak = currentBreaks[0];
-        switch (mostRecentBreak.type) {
-          case 'lunch':
-            setState('on_lunch_break');
+        const currentBreak = currentBreaks[0];
+        switch (currentBreak.status) {
+          case 'pending':
+            // Show as checked in but with pending break
+            setState('checked_in');
             break;
-          case 'wc':
-            setState('on_wc_break');
-            break;
-          case 'coffee':
-            setState('on_coffee_break');
+          case 'approved':
+          case 'active':
+            switch (currentBreak.type) {
+              case 'lunch':
+                setState('on_lunch_break');
+                break;
+              case 'wc':
+                setState('on_wc_break');
+                break;
+              case 'coffee':
+                setState('on_coffee_break');
+                break;
+              default:
+                setState('checked_in');
+            }
             break;
           default:
             setState('checked_in');
