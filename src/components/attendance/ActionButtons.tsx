@@ -8,7 +8,6 @@ import {
   Utensils,
   Pause,
   Square,
-  Hourglass,
   CircleOff,
 } from 'lucide-react';
 
@@ -58,11 +57,15 @@ export const ActionButtons = ({
   loading = false,
 }: ActionButtonsProps) => {
   const breakPending = breakRecord ? ['requested', 'pending'].includes(breakRecord.status) : false;
-  const breakApproved = breakRecord?.status === 'approved';
+  const breakReadyToStart = breakRecord
+    ? ['requested', 'pending', 'approved'].includes(breakRecord.status)
+    : false;
   const breakActive = breakRecord?.status === 'active';
 
   const lunchPending = lunchRecord ? ['requested', 'pending'].includes(lunchRecord.status) : false;
-  const lunchApproved = lunchRecord?.status === 'approved';
+  const lunchReadyToStart = lunchRecord
+    ? ['requested', 'pending', 'approved'].includes(lunchRecord.status)
+    : false;
   const lunchActive = lunchRecord?.status === 'active';
 
   const hasBreakInFlight = hasOpenStatus(breakRecord);
@@ -87,36 +90,11 @@ export const ActionButtons = ({
   if (!breakRecord) {
     actions.push({
       key: 'request-break',
-      label: 'Request Break',
+      label: 'Start Break',
       icon: Coffee,
       onClick: onRequestBreak,
       disabled: !canRequestBreak || loading,
       emphasis: canRequestBreak && !loading,
-    });
-  } else if (breakPending) {
-    actions.push({
-      key: 'break-pending',
-      label: 'Break Pending Approval',
-      icon: Hourglass,
-      disabled: true,
-      emphasis: false,
-    });
-    actions.push({
-      key: 'cancel-break',
-      label: 'Cancel Break Request',
-      icon: CircleOff,
-      onClick: onCancelBreakRequest,
-      disabled: loading,
-      emphasis: false,
-    });
-  } else if (breakApproved) {
-    actions.push({
-      key: 'start-break',
-      label: 'Start Break',
-      icon: Coffee,
-      onClick: onStartBreak,
-      disabled: loading,
-      emphasis: !loading,
     });
   } else if (breakActive) {
     actions.push({
@@ -127,41 +105,36 @@ export const ActionButtons = ({
       disabled: loading,
       emphasis: !loading,
     });
+  } else if (breakReadyToStart) {
+    actions.push({
+      key: 'start-break',
+      label: 'Start Break',
+      icon: Coffee,
+      onClick: onStartBreak,
+      disabled: loading,
+      emphasis: !loading,
+    });
+
+    if (breakPending) {
+      actions.push({
+        key: 'cancel-break',
+        label: 'Cancel Break Request',
+        icon: CircleOff,
+        onClick: onCancelBreakRequest,
+        disabled: loading,
+        emphasis: false,
+      });
+    }
   }
 
   if (!lunchRecord) {
     actions.push({
       key: 'request-lunch',
-      label: 'Request Lunch',
+      label: 'Start Lunch Break',
       icon: Utensils,
       onClick: onRequestLunch,
       disabled: !canRequestLunch || loading,
       emphasis: canRequestLunch && !loading,
-    });
-  } else if (lunchPending) {
-    actions.push({
-      key: 'lunch-pending',
-      label: 'Lunch Pending Approval',
-      icon: Hourglass,
-      disabled: true,
-      emphasis: false,
-    });
-    actions.push({
-      key: 'cancel-lunch',
-      label: 'Cancel Lunch Request',
-      icon: CircleOff,
-      onClick: onCancelLunchRequest,
-      disabled: loading,
-      emphasis: false,
-    });
-  } else if (lunchApproved) {
-    actions.push({
-      key: 'start-lunch',
-      label: 'Start Lunch',
-      icon: Utensils,
-      onClick: onStartLunch,
-      disabled: loading,
-      emphasis: !loading,
     });
   } else if (lunchActive) {
     actions.push({
@@ -172,6 +145,26 @@ export const ActionButtons = ({
       disabled: loading,
       emphasis: !loading,
     });
+  } else if (lunchReadyToStart) {
+    actions.push({
+      key: 'start-lunch',
+      label: 'Start Lunch',
+      icon: Utensils,
+      onClick: onStartLunch,
+      disabled: loading,
+      emphasis: !loading,
+    });
+
+    if (lunchPending) {
+      actions.push({
+        key: 'cancel-lunch',
+        label: 'Cancel Lunch Request',
+        icon: CircleOff,
+        onClick: onCancelLunchRequest,
+        disabled: loading,
+        emphasis: false,
+      });
+    }
   }
 
   actions.push({

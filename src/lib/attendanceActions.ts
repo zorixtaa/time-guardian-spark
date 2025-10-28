@@ -44,7 +44,25 @@ export const checkOut = async (attendanceId: string) => {
 
 type BreakType = 'scheduled' | 'bathroom' | 'lunch' | 'emergency';
 
-export const requestBreak = async (userId: string, type: BreakType = 'bathroom') => {
+interface RequestBreakOptions {
+  autoActivate?: boolean;
+}
+
+interface StartBreakOptions {
+  allowPending?: boolean;
+}
+
+const isBreakNotReadyError = (error: any) => {
+  if (!error) return false;
+  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
+  return message.includes('not ready') || message.includes('no rows returned');
+};
+
+export const requestBreak = async (
+  userId: string,
+  type: BreakType = 'bathroom',
+  options: RequestBreakOptions = {},
+) => {
   const now = new Date().toISOString();
 
   const { data, error } = await supabase
@@ -60,8 +78,10 @@ export const requestBreak = async (userId: string, type: BreakType = 'bathroom')
     .select()
     .single();
 
+  let result = data;
+
   if (!error && data) {
-    return data;
+    result = data;
   }
 
   if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
@@ -77,11 +97,32 @@ export const requestBreak = async (userId: string, type: BreakType = 'bathroom')
       .single();
 
     if (fallback.error) throw fallback.error;
-    return fallback.data;
+    result = fallback.data;
   }
 
-  if (error) throw error;
-  throw new Error('Unable to create break request.');
+  if (!result) {
+    if (error) throw error;
+    throw new Error('Unable to create break request.');
+  }
+
+  if (!options.autoActivate) {
+    return result;
+  }
+
+  try {
+    const started = await startApprovedBreak(result.id, { allowPending: true });
+    return started ?? result;
+  } catch (startError: any) {
+    if (isMissingColumnError(startError) || isConstraintViolation(startError)) {
+      return result;
+    }
+
+    if (isBreakNotReadyError(startError)) {
+      return result;
+    }
+
+    throw startError;
+  }
 };
 
 export const cancelBreakRequest = async (userId: string, breakId: string, reason?: string) => {
@@ -218,7 +259,14 @@ export const rejectBreak = async (breakId: string, approverId: string, reason?: 
   return data;
 };
 
-export const startApprovedBreak = async (breakId: string) => {
+export const startApprovedBreak = async (
+  breakId: string,
+  options: StartBreakOptions = {},
+) => {
+  const allowedStatuses = options.allowPending
+    ? ['approved', 'requested', 'pending']
+    : ['approved'];
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
@@ -226,9 +274,27 @@ export const startApprovedBreak = async (breakId: string) => {
       started_at: new Date().toISOString(),
     })
     .eq('id', breakId)
-    .eq('status', 'approved')
+    .in('status', allowedStatuses)
     .select()
     .maybeSingle();
+
+  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
+    const fallback = await supabase
+      .from('breaks')
+      .update({
+        started_at: new Date().toISOString(),
+      })
+      .eq('id', breakId)
+      .select()
+      .maybeSingle();
+
+    if (fallback.error) throw fallback.error;
+    if (!fallback.data) {
+      throw new Error('Break is not ready to start.');
+    }
+
+    return fallback.data;
+  }
 
   if (error) throw error;
 
@@ -368,11 +434,13 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
   return data;
 };
 
-export const requestLunch = (userId: string) => requestBreak(userId, 'lunch');
+export const requestLunch = (userId: string, options: RequestBreakOptions = {}) =>
+  requestBreak(userId, 'lunch', options);
 
 export const cancelLunchRequest = (userId: string, breakId: string, reason?: string) =>
   cancelBreakRequest(userId, breakId, reason ?? 'Cancelled lunch request');
 
-export const startLunch = (breakId: string) => startApprovedBreak(breakId);
+export const startLunch = (breakId: string, options: StartBreakOptions = {}) =>
+  startApprovedBreak(breakId, options);
 
 export const endLunch = async (userId: string, breakId?: string) => endBreak(userId, breakId);

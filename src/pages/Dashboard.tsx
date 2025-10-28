@@ -287,7 +287,7 @@ const Dashboard = () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      const record = await requestBreak(user.id);
+      const record = await requestBreak(user.id, 'bathroom', { autoActivate: true });
 
       if (record.status === 'active') {
         toast({
@@ -347,7 +347,7 @@ const Dashboard = () => {
   };
 
   const handleActivateBreak = async () => {
-    if (!activeBreak || activeBreak.status !== 'approved') {
+    if (!activeBreak || !['approved', 'requested', 'pending'].includes(activeBreak.status)) {
       toast({
         title: 'Break not ready',
         description: 'Wait for approval before starting your break.',
@@ -358,7 +358,9 @@ const Dashboard = () => {
 
     setActionLoading(true);
     try {
-      await startApprovedBreak(activeBreak.id);
+      await startApprovedBreak(activeBreak.id, {
+        allowPending: activeBreak.status === 'requested' || activeBreak.status === 'pending',
+      });
       toast({
         title: 'Break Started',
         description: 'Take your time!',
@@ -400,7 +402,7 @@ const Dashboard = () => {
     if (!user) return;
     setActionLoading(true);
     try {
-      const record = await requestLunch(user.id);
+      const record = await requestLunch(user.id, { autoActivate: true });
 
       if (record.status === 'active') {
         toast({
@@ -460,7 +462,7 @@ const Dashboard = () => {
   };
 
   const handleActivateLunch = async () => {
-    if (!activeLunch || activeLunch.status !== 'approved') {
+    if (!activeLunch || !['approved', 'requested', 'pending'].includes(activeLunch.status)) {
       toast({
         title: 'Lunch not ready',
         description: 'Wait for approval before starting lunch.',
@@ -471,7 +473,9 @@ const Dashboard = () => {
 
     setActionLoading(true);
     try {
-      await startLunch(activeLunch.id);
+      await startLunch(activeLunch.id, {
+        allowPending: activeLunch.status === 'requested' || activeLunch.status === 'pending',
+      });
       toast({
         title: 'Lunch Started',
         description: 'Enjoy your meal!',
