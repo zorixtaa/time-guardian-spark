@@ -1,5 +1,5 @@
--- Configure Google OAuth for authentication
--- This migration ensures Google OAuth is properly configured
+-- Apply Google OAuth configuration to production database
+-- Run this in your Supabase SQL editor
 
 -- Enable Google OAuth provider
 INSERT INTO auth.providers (id, name, enabled, created_at, updated_at)
@@ -30,3 +30,6 @@ VALUES
 ON CONFLICT (key) DO UPDATE SET 
   value = EXCLUDED.value,
   updated_at = now();
+
+-- Verify the configuration
+SELECT key, value FROM auth.config WHERE key IN ('google_enabled', 'google_client_id', 'site_url', 'redirect_urls');

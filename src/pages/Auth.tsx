@@ -40,7 +40,7 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
+            emailRedirectTo: 'https://time-guardian-spark.vercel.app/dashboard',
             data: {
               display_name: displayName,
             },
@@ -83,7 +83,7 @@ const Auth = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/dashboard`,
+          redirectTo: 'https://time-guardian-spark.vercel.app/dashboard',
         },
       });
 

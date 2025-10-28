@@ -2,8 +2,8 @@ project_id = "elnarrbpsphoxgldzehh"
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://your-domain.com"]
+site_url = "https://time-guardian-spark.vercel.app"
+additional_redirect_urls = ["https://time-guardian-spark.vercel.app/dashboard"]
 jwt_expiry = 3600
 enable_signup = true
 
