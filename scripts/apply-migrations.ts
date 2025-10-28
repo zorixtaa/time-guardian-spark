@@ -112,7 +112,9 @@ async function applyAllMigrations() {
       '20251028200000_fix_schema_coherence.sql',
       '20251028210000_fix_breaks_type_column.sql',
       '20251028220000_populate_teams_with_correct_departments.sql',
-      '20251028230000_populate_teams_disable_rls.sql'
+      '20251028230000_populate_teams_disable_rls.sql',
+      '20251028240000_add_sample_employee_profiles.sql',
+      '20251028250000_fix_teams_table_structure.sql'
     ]
     
     for (const migration of migrations) {
