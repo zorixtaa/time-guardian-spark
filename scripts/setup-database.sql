@@ -23,9 +23,8 @@ EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
 
--- Create break_status_enum
 DO $$ BEGIN
-    CREATE TYPE public.break_status_enum AS ENUM ('active', 'completed');
+    CREATE TYPE public.break_status_enum AS ENUM ('pending', 'approved', 'denied', 'active', 'completed');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
