@@ -24,11 +24,11 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-async function applySQL() {
+async function applySQL(sqlFilePath?: string) {
   try {
-    console.log('🚀 Applying complete database setup...\n')
+    console.log('🚀 Applying SQL file...\n')
     
-    const sqlPath = join(__dirname, 'setup-database.sql')
+    const sqlPath = sqlFilePath || join(process.cwd(), 'scripts', 'setup-database.sql')
     const sql = readFileSync(sqlPath, 'utf8')
     
     // Split the SQL into individual statements
@@ -82,7 +82,8 @@ async function applySQL() {
 }
 
 // Run the SQL application
-applySQL().catch(error => {
+const sqlFilePath = process.argv[2]
+applySQL(sqlFilePath).catch(error => {
   console.error('❌ Fatal error:', error)
   process.exit(1)
 })
