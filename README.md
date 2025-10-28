@@ -1,6 +1,6 @@
 # Attendance Tracking System with Gamification
 
-A comprehensive employee attendance tracking system built with React, TypeScript, Vite, and Supabase. Features real-time tracking, break management, team administration, and gamification with XP and badges.
+A comprehensive employee attendance tracking system developed by **Zouhair O**. Built with React, TypeScript, Vite, and Supabase. Features real-time tracking, break management, team administration, and gamification with XP and badges.
 
 ## 🎯 Quick Links
 
@@ -234,14 +234,15 @@ See [MIGRATION_GUIDE.md](./MIGRATION_GUIDE.md) for detailed troubleshooting.
 
 ## 📄 License
 
-Private project - All rights reserved
+Private project - All rights reserved  
+**Developed by:** Zouhair O
 
 ## 🆘 Support
 
 For issues or questions:
 1. Check the documentation files listed above
 2. Run `npm run verify-db` for database issues
-3. Contact the development team
+3. Contact Zouhair O
 
 ---
 
