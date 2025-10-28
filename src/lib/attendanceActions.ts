@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import type { BreakType } from '@/types/attendance';
 
 export const checkIn = async (userId: string) => {
   const { data, error } = await supabase
@@ -15,6 +16,23 @@ export const checkIn = async (userId: string) => {
 };
 
 export const checkOut = async (attendanceId: string) => {
+  // First, end any active breaks
+  const { data: activeBreaks } = await supabase
+    .from('breaks')
+    .select('id')
+    .eq('attendance_id', attendanceId)
+    .eq('status', 'active')
+    .is('ended_at', null);
+
+  if (activeBreaks && activeBreaks.length > 0) {
+    const now = new Date().toISOString();
+    await supabase
+      .from('breaks')
+      .update({ ended_at: now, status: 'completed' })
+      .in('id', activeBreaks.map(b => b.id));
+  }
+
+  // Then check out
   const { data, error } = await supabase
     .from('attendance')
     .update({
@@ -28,175 +46,114 @@ export const checkOut = async (attendanceId: string) => {
   return data;
 };
 
-type BreakType = 'scheduled' | 'bathroom' | 'lunch' | 'emergency';
-
-export const requestBreak = async (userId: string, type: BreakType = 'bathroom') => {
-  const { data, error } = await supabase
+/**
+ * Toggle an instant break - starts if not active, ends if active
+ */
+export const toggleInstantBreak = async (
+  userId: string, 
+  attendanceId: string, 
+  breakType: BreakType
+) => {
+  // Check if there's an active break of this type
+  const { data: activeBreak } = await supabase
     .from('breaks')
-    .insert({
-      user_id: userId,
-      type,
-      status: 'pending',
-      started_at: null,
-      ended_at: null,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-};
-
-export const cancelBreakRequest = async (userId: string, breakId: string, reason?: string) => {
-  const now = new Date().toISOString();
-
-  const { data, error } = await supabase
-    .from('breaks')
-    .update({
-      status: 'denied',
-      ended_at: now,
-      reason: reason ?? 'Cancelled by employee',
-    })
-    .eq('id', breakId)
+    .select('*')
     .eq('user_id', userId)
-    .eq('status', 'pending')
-    .select()
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    throw new Error('No pending request found to cancel.');
-  }
-
-  return data;
-};
-
-export const approveBreak = async (breakId: string, approverId: string) => {
-  const { data, error } = await supabase
-    .from('breaks')
-    .update({
-      approved_by: approverId,
-      status: 'approved',
-    })
-    .eq('id', breakId)
-    .eq('status', 'pending')
-    .select()
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    throw new Error('This break request is no longer awaiting approval.');
-  }
-
-  return data;
-};
-
-export const rejectBreak = async (breakId: string, approverId: string, reason?: string) => {
-  const { data, error } = await supabase
-    .from('breaks')
-    .update({
-      approved_by: approverId,
-      status: 'denied',
-      reason: reason ?? 'Rejected by admin',
-    })
-    .eq('id', breakId)
-    .eq('status', 'pending')
-    .select()
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    throw new Error('This break request is no longer awaiting approval.');
-  }
-
-  return data;
-};
-
-export const startApprovedBreak = async (breakId: string) => {
-  const { data, error } = await supabase
-    .from('breaks')
-    .update({
-      status: 'active',
-      started_at: new Date().toISOString(),
-    })
-    .eq('id', breakId)
-    .eq('status', 'approved')
-    .select()
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    throw new Error('Break is not ready to start.');
-  }
-
-  return data;
-};
-
-const resolveActiveBreakId = async (userId: string, breakId?: string) => {
-  if (breakId) {
-    const { data: candidate, error: candidateError } = await supabase
-      .from('breaks')
-      .select('id, status, ended_at')
-      .eq('id', breakId)
-      .eq('user_id', userId)
-      .maybeSingle<{ id: string; status: string; ended_at: string | null }>();
-
-    if (candidateError) throw candidateError;
-
-    if (candidate && candidate.status === 'active' && !candidate.ended_at) {
-      return candidate.id;
-    }
-  }
-
-  const { data, error } = await supabase
-    .from('breaks')
-    .select('id')
-    .eq('user_id', userId)
+    .eq('attendance_id', attendanceId)
+    .eq('type', breakType)
     .eq('status', 'active')
     .is('ended_at', null)
-    .order('started_at', { ascending: false })
-    .limit(1)
-    .maybeSingle<{ id: string }>();
+    .maybeSingle();
 
-  if (error) throw error;
+  if (activeBreak) {
+    // End the active break
+    const { data, error } = await supabase
+      .from('breaks')
+      .update({
+        ended_at: new Date().toISOString(),
+        status: 'completed',
+      })
+      .eq('id', activeBreak.id)
+      .select()
+      .single();
 
-  return data?.id ?? null;
+    if (error) throw error;
+    return { action: 'ended' as const, data };
+  } else {
+    // Start a new break
+    const { data, error } = await supabase
+      .from('breaks')
+      .insert({
+        user_id: userId,
+        attendance_id: attendanceId,
+        type: breakType,
+        status: 'active',
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { action: 'started' as const, data };
+  }
 };
 
-export const endBreak = async (userId: string, breakId?: string) => {
-  const activeBreakId = await resolveActiveBreakId(userId, breakId);
+/**
+ * Get active break for a specific type
+ */
+export const getActiveBreak = async (userId: string, attendanceId: string, breakType: BreakType) => {
+  const { data, error } = await supabase
+    .from('breaks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('attendance_id', attendanceId)
+    .eq('type', breakType)
+    .eq('status', 'active')
+    .is('ended_at', null)
+    .maybeSingle();
 
-  if (!activeBreakId) {
-    throw new Error('No active break found to end. It may have already been completed.');
-  }
+  if (error) throw error;
+  return data;
+};
 
+/**
+ * Get all active breaks for current attendance
+ */
+export const getAllActiveBreaks = async (userId: string, attendanceId: string) => {
+  const { data, error } = await supabase
+    .from('breaks')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('attendance_id', attendanceId)
+    .eq('status', 'active')
+    .is('ended_at', null);
+
+  if (error) throw error;
+  return data || [];
+};
+
+/**
+ * End all active breaks (used when checking out)
+ */
+export const endAllActiveBreaks = async (attendanceId: string) => {
   const now = new Date().toISOString();
-
+  
   const { data, error } = await supabase
     .from('breaks')
     .update({
       ended_at: now,
       status: 'completed',
     })
-    .eq('id', activeBreakId)
+    .eq('attendance_id', attendanceId)
     .eq('status', 'active')
     .is('ended_at', null)
-    .select()
-    .maybeSingle();
+    .select();
 
   if (error) throw error;
-
-  if (!data) {
-    throw new Error('No active break found to end. It may have already been completed.');
-  }
-
   return data;
 };
 
+// Admin functions for forcing break end
 export const forceEndBreak = async (breakId: string, adminId: string, reason?: string) => {
   const now = new Date().toISOString();
 
@@ -208,7 +165,7 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
       reason: reason ?? 'Force ended by admin',
     })
     .eq('id', breakId)
-    .in('status', ['approved', 'active'])
+    .eq('status', 'active')
     .select()
     .maybeSingle();
 
@@ -220,12 +177,3 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
 
   return data;
 };
-
-export const requestLunch = (userId: string) => requestBreak(userId, 'lunch');
-
-export const cancelLunchRequest = (userId: string, breakId: string, reason?: string) =>
-  cancelBreakRequest(userId, breakId, reason ?? 'Cancelled lunch request');
-
-export const startLunch = (breakId: string) => startApprovedBreak(breakId);
-
-export const endLunch = async (userId: string, breakId?: string) => endBreak(userId, breakId);

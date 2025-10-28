@@ -4,14 +4,22 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 
 interface AttendanceMetrics {
-  workedMinutes: number;
-  breakMinutes: number;
+  workedMinutes: number; // Total clocked in time
+  effectiveMinutes: number; // Worked time - breaks
+  coffeeMinutes: number;
+  wcMinutes: number;
+  lunchMinutes: number;
+  totalBreakMinutes: number;
   streakDays: number;
 }
 
 const defaultMetrics: AttendanceMetrics = {
   workedMinutes: 0,
-  breakMinutes: 0,
+  effectiveMinutes: 0,
+  coffeeMinutes: 0,
+  wcMinutes: 0,
+  lunchMinutes: 0,
+  totalBreakMinutes: 0,
   streakDays: 0,
 };
 
@@ -51,8 +59,8 @@ export const useAttendanceMetrics = (userId: string | undefined) => {
           .from('breaks')
           .select('type, started_at, ended_at, status')
           .eq('user_id', userId)
-          .gte('started_at', dayStart)
-          .lte('started_at', dayEnd),
+          .gte('created_at', dayStart)
+          .lte('created_at', dayEnd),
         supabase
           .from('attendance')
           .select('clock_in_at')
@@ -65,15 +73,37 @@ export const useAttendanceMetrics = (userId: string | undefined) => {
       if (breaksResult.error) throw breaksResult.error;
       if (streakResult.error) throw streakResult.error;
 
+      // Calculate total worked time (clocked in time)
       const workedMinutes = (attendanceResult.data ?? []).reduce((total, record) => {
         return total + minutesBetween(record.clock_in_at, record.clock_out_at);
       }, 0);
 
-      const breakMinutes = (breaksResult.data ?? []).reduce((total, record) => {
-        const duration = minutesBetween(record.started_at, record.ended_at);
-        return total + duration;
-      }, 0);
+      // Calculate break times by type
+      let coffeeMinutes = 0;
+      let wcMinutes = 0;
+      let lunchMinutes = 0;
 
+      (breaksResult.data ?? []).forEach((record) => {
+        if (record.started_at) {
+          const duration = minutesBetween(record.started_at, record.ended_at);
+          switch (record.type) {
+            case 'coffee':
+              coffeeMinutes += duration;
+              break;
+            case 'wc':
+              wcMinutes += duration;
+              break;
+            case 'lunch':
+              lunchMinutes += duration;
+              break;
+          }
+        }
+      });
+
+      const totalBreakMinutes = coffeeMinutes + wcMinutes + lunchMinutes;
+      const effectiveMinutes = Math.max(0, workedMinutes - totalBreakMinutes);
+
+      // Calculate streak
       const attendanceByDay = new Set<string>();
       (streakResult.data ?? []).forEach((record) => {
         if (record.clock_in_at) {
@@ -88,7 +118,15 @@ export const useAttendanceMetrics = (userId: string | undefined) => {
         cursor = subDays(cursor, 1);
       }
 
-      setMetrics({ workedMinutes, breakMinutes, streakDays });
+      setMetrics({ 
+        workedMinutes, 
+        effectiveMinutes,
+        coffeeMinutes, 
+        wcMinutes, 
+        lunchMinutes, 
+        totalBreakMinutes,
+        streakDays 
+      });
     } catch (error: any) {
       console.error('Failed to load attendance metrics:', error);
       toast({

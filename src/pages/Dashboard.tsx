@@ -11,17 +11,10 @@ import { ActionButtons } from '@/components/attendance/ActionButtons';
 import {
   checkIn,
   checkOut,
-  requestBreak,
-  cancelBreakRequest,
-  startApprovedBreak,
-  endBreak,
-  requestLunch,
-  cancelLunchRequest,
-  startLunch,
-  endLunch,
+  toggleInstantBreak,
 } from '@/lib/attendanceActions';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, Clock, Coffee, Utensils, Target } from 'lucide-react';
+import { LogOut, Clock, Coffee, UtensilsCrossed, CircleSlash2, Target, Zap } from 'lucide-react';
 import { User } from '@supabase/supabase-js';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { UserRole } from '@/types/attendance';
@@ -61,8 +54,7 @@ const Dashboard = () => {
   const {
     state,
     currentAttendance,
-    activeBreak,
-    activeLunch,
+    activeBreaks,
     refresh,
     loading: attendanceLoading,
   } = useAttendanceState(user?.id);
@@ -283,56 +275,14 @@ const Dashboard = () => {
     }
   };
 
-  const handleRequestBreak = async () => {
-    if (!user) return;
+  const handleToggleCoffee = async () => {
+    if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const record = await requestBreak(user.id);
-
-      if (record.status === 'active') {
-        toast({
-          title: 'Break Started',
-          description: 'Take your time!',
-        });
-      } else if (record.status === 'pending') {
-        toast({
-          title: 'Break Requested',
-          description: 'Waiting for approval…',
-        });
-      } else {
-        toast({
-          title: 'Break updated',
-          description: 'Your break status has been recorded.',
-        });
-      }
-      await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
+      const result = await toggleInstantBreak(user.id, currentAttendance.id, 'coffee');
       toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCancelBreakRequest = async () => {
-    if (!user || !activeBreak || activeBreak.status !== 'pending') {
-      toast({
-        title: 'No pending break request',
-        description: 'Refresh the page and try again.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await cancelBreakRequest(user.id, activeBreak.id);
-      toast({
-        title: 'Break Request Cancelled',
-        description: 'You can request again anytime.',
+        title: result.action === 'started' ? 'Coffee Break Started' : 'Coffee Break Ended',
+        description: result.action === 'started' ? 'Enjoy your coffee!' : 'Back to work!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
@@ -346,22 +296,14 @@ const Dashboard = () => {
     }
   };
 
-  const handleActivateBreak = async () => {
-    if (!activeBreak || activeBreak.status !== 'approved') {
-      toast({
-        title: 'Break not ready',
-        description: 'Wait for approval before starting your break.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleToggleWc = async () => {
+    if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      await startApprovedBreak(activeBreak.id);
+      const result = await toggleInstantBreak(user.id, currentAttendance.id, 'wc');
       toast({
-        title: 'Break Started',
-        description: 'Take your time!',
+        title: result.action === 'started' ? 'WC Break Started' : 'WC Break Ended',
+        description: result.action === 'started' ? 'Take your time!' : 'Welcome back!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
@@ -375,14 +317,14 @@ const Dashboard = () => {
     }
   };
 
-  const handleEndBreak = async () => {
-    if (!user) return;
+  const handleToggleLunch = async () => {
+    if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      await endBreak(user.id, activeBreak?.id ?? undefined);
+      const result = await toggleInstantBreak(user.id, currentAttendance.id, 'lunch');
       toast({
-        title: 'Break Ended',
-        description: 'Welcome back!',
+        title: result.action === 'started' ? 'Lunch Break Started' : 'Lunch Break Ended',
+        description: result.action === 'started' ? 'Enjoy your meal!' : 'Back to work!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: any) {
@@ -396,118 +338,6 @@ const Dashboard = () => {
     }
   };
 
-  const handleRequestLunch = async () => {
-    if (!user) return;
-    setActionLoading(true);
-    try {
-      const record = await requestLunch(user.id);
-
-      if (record.status === 'active') {
-        toast({
-          title: 'Lunch Started',
-          description: 'Enjoy your meal!',
-        });
-      } else if (record.status === 'pending') {
-        toast({
-          title: 'Lunch Requested',
-          description: 'Waiting for approval…',
-        });
-      } else {
-        toast({
-          title: 'Lunch updated',
-          description: 'Your lunch status has been recorded.',
-        });
-      }
-      await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleCancelLunchRequest = async () => {
-    if (!user || !activeLunch || activeLunch.status !== 'pending') {
-      toast({
-        title: 'No pending lunch request',
-        description: 'Refresh the page and try again.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await cancelLunchRequest(user.id, activeLunch.id);
-      toast({
-        title: 'Lunch Request Cancelled',
-        description: 'You can request lunch again anytime.',
-      });
-      await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleActivateLunch = async () => {
-    if (!activeLunch || activeLunch.status !== 'approved') {
-      toast({
-        title: 'Lunch not ready',
-        description: 'Wait for approval before starting lunch.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setActionLoading(true);
-    try {
-      await startLunch(activeLunch.id);
-      toast({
-        title: 'Lunch Started',
-        description: 'Enjoy your meal!',
-      });
-      await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleEndLunch = async () => {
-    if (!user) return;
-    setActionLoading(true);
-    try {
-      await endLunch(user.id, activeLunch?.id ?? undefined);
-      toast({
-        title: 'Lunch Ended',
-        description: 'Back to work!',
-      });
-      await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const derivedName = useMemo(() => {
     if (!user) return '';
@@ -541,11 +371,23 @@ const Dashboard = () => {
   const workedTodayDisplay = metricsLoading
     ? 'Calculating…'
     : formatHoursAndMinutes(metrics.workedMinutes);
+  const effectiveTimeDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.effectiveMinutes);
   const breakTimeDisplay = metricsLoading
     ? 'Calculating…'
-    : formatHoursAndMinutes(metrics.breakMinutes);
+    : formatHoursAndMinutes(metrics.totalBreakMinutes);
+  const coffeeTimeDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.coffeeMinutes);
+  const wcTimeDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.wcMinutes);
+  const lunchTimeDisplay = metricsLoading
+    ? 'Calculating…'
+    : formatHoursAndMinutes(metrics.lunchMinutes);
   const streakDisplay = metricsLoading ? 'Calculating…' : formatDaysLabel(metrics.streakDays);
-  const activeSessionRecord = state === 'on_lunch' ? activeLunch : state === 'on_break' ? activeBreak : null;
+  const activeBreak = activeBreaks.length > 0 ? activeBreaks[0] : null;
 
   if (loading || roleLoading) {
     return (
@@ -629,9 +471,9 @@ const Dashboard = () => {
               </div>
             )}
 
-            {activeSessionRecord?.started_at && (
+            {activeBreak?.started_at && (
               <div className="text-sm text-muted-foreground">
-                Started at {new Date(activeSessionRecord.started_at).toLocaleTimeString([], {
+                Current break started at {new Date(activeBreak.started_at).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
@@ -655,24 +497,18 @@ const Dashboard = () => {
             )}
             <ActionButtons
               state={state}
-              breakRecord={activeBreak}
-              lunchRecord={activeLunch}
+              activeBreaks={activeBreaks}
               onCheckIn={handleCheckIn}
               onCheckOut={handleCheckOut}
-              onRequestBreak={handleRequestBreak}
-              onCancelBreakRequest={handleCancelBreakRequest}
-              onStartBreak={handleActivateBreak}
-              onEndBreak={handleEndBreak}
-              onRequestLunch={handleRequestLunch}
-              onCancelLunchRequest={handleCancelLunchRequest}
-              onStartLunch={handleActivateLunch}
-              onEndLunch={handleEndLunch}
+              onToggleCoffee={handleToggleCoffee}
+              onToggleWc={handleToggleWc}
+              onToggleLunch={handleToggleLunch}
               loading={actionLoading || attendanceLoading}
             />
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card className="border-yellow/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
@@ -680,22 +516,22 @@ const Dashboard = () => {
                   <Clock className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground/80">Worked Today</p>
+                  <p className="text-sm text-muted-foreground/80">Total Clocked</p>
                   <p className="text-2xl font-semibold text-foreground">{workedTodayDisplay}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-yellow/20 bg-card/50 backdrop-blur">
+          <Card className="border-green-500/20 bg-card/50 backdrop-blur">
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow/15 text-yellow">
-                  <Coffee className="w-6 h-6" />
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/15 text-green-400">
+                  <Zap className="w-6 h-6" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground/80">Break Time</p>
-                  <p className="text-2xl font-semibold text-foreground">{breakTimeDisplay}</p>
+                  <p className="text-sm text-muted-foreground/80">Effective Work</p>
+                  <p className="text-2xl font-semibold text-green-400">{effectiveTimeDisplay}</p>
                 </div>
               </div>
             </CardContent>
@@ -710,6 +546,48 @@ const Dashboard = () => {
                 <div>
                   <p className="text-sm text-muted-foreground/80">Streak</p>
                   <p className="text-2xl font-semibold text-foreground">{streakDisplay}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-orange-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-500/15 text-orange-400">
+                  <Coffee className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground/80">Coffee Breaks</p>
+                  <p className="text-2xl font-semibold text-foreground">{coffeeTimeDisplay}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/15 text-blue-400">
+                  <CircleSlash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground/80">WC Breaks</p>
+                  <p className="text-2xl font-semibold text-foreground">{wcTimeDisplay}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-green-500/20 bg-card/50 backdrop-blur">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/15 text-green-400">
+                  <UtensilsCrossed className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground/80">Lunch Breaks</p>
+                  <p className="text-2xl font-semibold text-foreground">{lunchTimeDisplay}</p>
                 </div>
               </div>
             </CardContent>

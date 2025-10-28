@@ -3,17 +3,10 @@ import { supabase } from '@/integrations/supabase/client';
 import type { AttendanceRecord, AttendanceState, BreakRecord } from '@/types/attendance';
 import { useToast } from '@/hooks/use-toast';
 
-const OPEN_BREAK_STATUSES: ReadonlyArray<BreakRecord['status']> = [
-  'pending',
-  'approved',
-  'active',
-];
-
 export const useAttendanceState = (userId: string | undefined) => {
   const [state, setState] = useState<AttendanceState>('not_checked_in');
   const [currentAttendance, setCurrentAttendance] = useState<AttendanceRecord | null>(null);
-  const [activeBreak, setActiveBreak] = useState<BreakRecord | null>(null);
-  const [activeLunch, setActiveLunch] = useState<BreakRecord | null>(null);
+  const [activeBreaks, setActiveBreaks] = useState<BreakRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -21,8 +14,7 @@ export const useAttendanceState = (userId: string | undefined) => {
     if (!userId) {
       setState('not_checked_in');
       setCurrentAttendance(null);
-      setActiveBreak(null);
-      setActiveLunch(null);
+      setActiveBreaks([]);
       setLoading(false);
       return;
     }
@@ -44,8 +36,7 @@ export const useAttendanceState = (userId: string | undefined) => {
       if (!attendance) {
         setState('not_checked_in');
         setCurrentAttendance(null);
-        setActiveBreak(null);
-        setActiveLunch(null);
+        setActiveBreaks([]);
         return;
       }
 
@@ -53,72 +44,45 @@ export const useAttendanceState = (userId: string | undefined) => {
 
       if (attendance.clock_out_at) {
         setState('checked_out');
-        setActiveBreak(null);
-        setActiveLunch(null);
+        setActiveBreaks([]);
         return;
       }
 
+      // Get all active breaks for current attendance
       const { data: breaks, error: breakError } = await supabase
         .from('breaks')
         .select('*')
         .eq('user_id', userId)
-        .in('status', Array.from(OPEN_BREAK_STATUSES))
+        .eq('attendance_id', attendance.id)
+        .eq('status', 'active')
         .is('ended_at', null)
-        .order('created_at', { ascending: false });
+        .order('started_at', { ascending: false });
 
       if (breakError) throw breakError;
 
-      const openBreaks = (breaks ?? []) as BreakRecord[];
-      const priority: Record<string, number> = { active: 0, approved: 1, pending: 2 };
+      const currentBreaks = (breaks ?? []) as BreakRecord[];
+      setActiveBreaks(currentBreaks);
 
-      const sortedBreaks = [...openBreaks].sort((a, b) => {
-        const priorityDelta = (priority[a.status] ?? 10) - (priority[b.status] ?? 10);
-
-        if (priorityDelta !== 0) {
-          return priorityDelta;
+      // Determine state based on active breaks
+      // Priority: lunch > wc > coffee (if multiple active, show the most recent)
+      if (currentBreaks.length > 0) {
+        const mostRecentBreak = currentBreaks[0];
+        switch (mostRecentBreak.type) {
+          case 'lunch':
+            setState('on_lunch_break');
+            break;
+          case 'wc':
+            setState('on_wc_break');
+            break;
+          case 'coffee':
+            setState('on_coffee_break');
+            break;
+          default:
+            setState('checked_in');
         }
-
-        const aTime = a.started_at ?? a.created_at;
-        const bTime = b.started_at ?? b.created_at;
-
-        return new Date(bTime).getTime() - new Date(aTime).getTime();
-      });
-
-      const currentLunch = sortedBreaks.find((record) => record.type === 'lunch') ?? null;
-      const currentBreak = sortedBreaks.find((record) => record.type !== 'lunch') ?? null;
-
-      setActiveLunch(currentLunch);
-      setActiveBreak(currentBreak);
-
-      if (currentLunch) {
-        if (currentLunch.status === 'active') {
-          setState('on_lunch');
-        } else if (currentLunch.status === 'approved') {
-          setState('lunch_approved');
-        } else if (currentLunch.status === 'pending') {
-          setState('lunch_requested');
-        } else {
-          setState('checked_in');
-        }
-
-        return;
+      } else {
+        setState('checked_in');
       }
-
-      if (currentBreak) {
-        if (currentBreak.status === 'active') {
-          setState('on_break');
-        } else if (currentBreak.status === 'approved') {
-          setState('break_approved');
-        } else if (currentBreak.status === 'pending') {
-          setState('break_requested');
-        } else {
-          setState('checked_in');
-        }
-
-        return;
-      }
-
-      setState('checked_in');
     } catch (error) {
       console.error('Error fetching attendance state:', error);
       toast({
@@ -174,8 +138,7 @@ export const useAttendanceState = (userId: string | undefined) => {
   return {
     state,
     currentAttendance,
-    activeBreak,
-    activeLunch,
+    activeBreaks,
     loading,
     refresh: fetchCurrentState,
   };
