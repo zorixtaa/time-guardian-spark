@@ -1,26 +1,25 @@
-#!/usr/bin/env tsx
-
-/**
- * Create Sample Data Script
- * 
- * This script creates sample data to populate the empty dashboard
- */
-
 import { createClient } from '@supabase/supabase-js'
-import { config } from 'dotenv'
+import dotenv from 'dotenv'
 
 // Load environment variables
-config()
+dotenv.config()
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
+const supabaseUrl = process.env.VITE_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('❌ Missing Supabase environment variables')
+if (!supabaseServiceKey) {
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY not found in environment variables')
+  console.log('Please add SUPABASE_SERVICE_ROLE_KEY to your .env file')
   process.exit(1)
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Create Supabase client with service role key (bypasses RLS)
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
 
 async function createSampleData() {
   try {
@@ -52,59 +51,46 @@ async function createSampleData() {
         } else {
           console.log(`✅ Created team: ${team.name}`)
         }
-      } catch (err) {
-        console.log(`❌ Error creating team ${team.name}: ${err}`)
+      } catch (err: any) {
+        console.log(`❌ Error creating team ${team.name}: ${err.message}`)
       }
     }
     
     // Step 2: Create employee profiles
     console.log('\n2. Creating employee profiles...')
     
-    const employees = [
-      { id: '00000000-0000-0000-0000-000000000011', name: 'Alice Johnson', team: '00000000-0000-0000-0000-000000000001', role: 'employee' },
-      { id: '00000000-0000-0000-0000-000000000012', name: 'Bob Smith', team: '00000000-0000-0000-0000-000000000001', role: 'admin' },
-      { id: '00000000-0000-0000-0000-000000000013', name: 'Carol Davis', team: '00000000-0000-0000-0000-000000000002', role: 'employee' },
-      { id: '00000000-0000-0000-0000-000000000014', name: 'David Wilson', team: '00000000-0000-0000-0000-000000000002', role: 'employee' },
-      { id: '00000000-0000-0000-0000-000000000015', name: 'Eva Brown', team: '00000000-0000-0000-0000-000000000003', role: 'employee' },
-      { id: '00000000-0000-0000-0000-000000000016', name: 'Frank Miller', team: '00000000-0000-0000-0000-000000000004', role: 'admin' },
-      { id: '00000000-0000-0000-0000-000000000017', name: 'Grace Lee', team: null, role: 'employee' }, // Unassigned
-      { id: '00000000-0000-0000-0000-000000000018', name: 'Super Admin', team: null, role: 'super_admin' }
+    const profiles = [
+      { id: '00000000-0000-0000-0000-000000000011', name: 'Alice Johnson', email: 'alice@company.com', role: 'employee', team_id: '00000000-0000-0000-0000-000000000001' },
+      { id: '00000000-0000-0000-0000-000000000012', name: 'Bob Smith', email: 'bob@company.com', role: 'admin', team_id: '00000000-0000-0000-0000-000000000001' },
+      { id: '00000000-0000-0000-0000-000000000013', name: 'Carol Davis', email: 'carol@company.com', role: 'employee', team_id: '00000000-0000-0000-0000-000000000002' },
+      { id: '00000000-0000-0000-0000-000000000014', name: 'David Wilson', email: 'david@company.com', role: 'employee', team_id: '00000000-0000-0000-0000-000000000003' },
+      { id: '00000000-0000-0000-0000-000000000015', name: 'Eva Brown', email: 'eva@company.com', role: 'admin', team_id: '00000000-0000-0000-0000-000000000004' },
+      { id: '00000000-0000-0000-0000-000000000016', name: 'Frank Miller', email: 'frank@company.com', role: 'employee', team_id: '00000000-0000-0000-0000-000000000002' },
+      { id: '00000000-0000-0000-0000-000000000017', name: 'Grace Lee', email: 'grace@company.com', role: 'employee', team_id: '00000000-0000-0000-0000-000000000003' },
+      { id: '00000000-0000-0000-0000-000000000010', name: 'Super Admin', email: 'superadmin@company.com', role: 'superadmin', team_id: null }
     ]
     
-    for (const emp of employees) {
+    for (const profile of profiles) {
       try {
-        // Create profile
-        const { error: profileError } = await supabase
+        const { error } = await supabase
           .from('profiles')
           .upsert({
-            id: emp.id,
-            display_name: emp.name,
-            team_id: emp.team,
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            role: profile.role,
+            team_id: profile.team_id,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
         
-        if (profileError) {
-          console.log(`❌ Failed to create profile for ${emp.name}: ${profileError.message}`)
-          continue
-        }
-        
-        // Create role
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .upsert({
-            user_id: emp.id,
-            role: emp.role,
-            created_at: new Date().toISOString()
-          })
-        
-        if (roleError) {
-          console.log(`❌ Failed to create role for ${emp.name}: ${roleError.message}`)
+        if (error) {
+          console.log(`❌ Failed to create profile for ${profile.name}: ${error.message}`)
         } else {
-          console.log(`✅ Created employee: ${emp.name} (${emp.role}) in ${emp.team || 'Unassigned'}`)
+          console.log(`✅ Created profile: ${profile.name} (${profile.role})`)
         }
-      } catch (err) {
-        console.log(`❌ Error creating employee ${emp.name}: ${err}`)
+      } catch (err: any) {
+        console.log(`❌ Error creating profile for ${profile.name}: ${err.message}`)
       }
     }
     
@@ -141,8 +127,8 @@ async function createSampleData() {
         } else {
           console.log(`✅ Created attendance record for ${record.user_id}`)
         }
-      } catch (err) {
-        console.log(`❌ Error creating attendance for ${record.user_id}: ${err}`)
+      } catch (err: any) {
+        console.log(`❌ Error creating attendance for ${record.user_id}: ${err.message}`)
       }
     }
     
@@ -174,43 +160,40 @@ async function createSampleData() {
         } else {
           console.log(`✅ Created break record for ${record.user_id} (${record.type})`)
         }
-      } catch (err) {
-        console.log(`❌ Error creating break for ${record.user_id}: ${err}`)
+      } catch (err: any) {
+        console.log(`❌ Error creating break for ${record.user_id}: ${err.message}`)
       }
     }
     
-    // Step 5: Verify the data
+    // Step 5: Verify created data
     console.log('\n5. Verifying created data...')
     
-    const { data: finalProfiles } = await supabase.from('profiles').select('*')
-    const { data: finalTeams } = await supabase.from('teams').select('*')
-    const { data: finalRoles } = await supabase.from('user_roles').select('*')
-    const { data: finalAttendance } = await supabase.from('attendance').select('*')
-    const { data: finalBreaks } = await supabase.from('breaks').select('*')
+    const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('*')
+    const { data: teamsData, error: teamsError } = await supabase.from('teams').select('*')
+    const { data: rolesData, error: rolesError } = await supabase.from('user_roles').select('*')
+    const { data: attendanceData, error: attendanceError } = await supabase.from('attendance').select('*')
+    const { data: breaksData, error: breaksError } = await supabase.from('breaks').select('*')
     
-    console.log(`✅ Final counts:`)
-    console.log(`   - Profiles: ${finalProfiles?.length || 0}`)
-    console.log(`   - Teams: ${finalTeams?.length || 0}`)
-    console.log(`   - Roles: ${finalRoles?.length || 0}`)
-    console.log(`   - Attendance: ${finalAttendance?.length || 0}`)
-    console.log(`   - Breaks: ${finalBreaks?.length || 0}`)
+    console.log('✅ Final counts:')
+    console.log(`   - Profiles: ${profilesData?.length || 0}`)
+    console.log(`   - Teams: ${teamsData?.length || 0}`)
+    console.log(`   - Roles: ${rolesData?.length || 0}`)
+    console.log(`   - Attendance: ${attendanceData?.length || 0}`)
+    console.log(`   - Breaks: ${breaksData?.length || 0}`)
     
     console.log('\n🎉 Sample data creation completed!')
     console.log('\n📝 Next steps:')
     console.log('1. Log in as superadmin')
     console.log('2. The dashboard should now show:')
-    console.log('   - 8 employees across 4 teams')
+    console.log('   - 8 employees across 4 departments')
     console.log('   - 5 active attendance records')
     console.log('   - 2 active breaks')
     console.log('   - Real metrics and data')
     
-  } catch (error) {
-    console.error('\n❌ Sample data creation failed:', error)
+  } catch (error: any) {
+    console.error('❌ Error creating sample data:', error.message)
+    process.exit(1)
   }
 }
 
-// Run the script
-createSampleData().catch(error => {
-  console.error('❌ Fatal error:', error)
-  process.exit(1)
-})
+createSampleData()
