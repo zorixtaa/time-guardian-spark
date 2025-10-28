@@ -10,6 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "verify-db": "tsx scripts/verify-db-connection.ts",
+    "verify-db-schema": "tsx scripts/verify-db-schema.ts",
+    "verify-app-schema": "tsx scripts/verify-app-schema.ts",
+    "setup-db": "tsx scripts/apply-sql.ts",
     "db:status": "echo 'Checking database migrations...' && ls -lah supabase/migrations/"
   },
   "dependencies": {
@@ -47,6 +50,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^3.6.0",
+    "dotenv": "^17.2.3",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",

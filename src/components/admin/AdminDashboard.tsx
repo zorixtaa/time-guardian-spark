@@ -46,10 +46,16 @@ import {
   Ban,
   CheckCircle2,
   Hourglass,
+  AlertCircle,
 } from 'lucide-react';
-import { AttendanceRecord, BreakRecord, UserRole } from '@/types/attendance';
+import { AttendanceRecord, BreakRecord, UserRole, EntitlementNotification } from '@/types/attendance';
 import {
   forceEndBreak,
+  approveBreak,
+  denyBreak,
+  getPendingBreakRequests,
+  getEntitlementNotifications,
+  acknowledgeEntitlementNotification,
 } from '@/lib/attendanceActions';
 import { useXpSystem } from '@/hooks/useXpSystem';
 import { XpProgress } from '@/components/xp/XpProgress';
@@ -150,7 +156,12 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
   const [assigningDepartment, setAssigningDepartment] = useState(false);
   const [deletingDepartmentId, setDeletingDepartmentId] = useState<string | null>(null);
   const [managedBreaks, setManagedBreaks] = useState<ManagedBreakRow[]>([]);
+  const [pendingBreakRequests, setPendingBreakRequests] = useState<any[]>([]);
+  const [entitlementNotifications, setEntitlementNotifications] = useState<EntitlementNotification[]>([]);
   const [forceEndingBreakId, setForceEndingBreakId] = useState<string | null>(null);
+  const [approvingBreakId, setApprovingBreakId] = useState<string | null>(null);
+  const [denyingBreakId, setDenyingBreakId] = useState<string | null>(null);
+  const [acknowledgingNotificationId, setAcknowledgingNotificationId] = useState<string | null>(null);
   const xpState = useXpSystem(user.id);
   const isSuperAdmin = role === 'super_admin';
 
@@ -316,6 +327,14 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
           }));
 
         setManagedBreaks(managedBreakRows);
+
+        // Fetch pending break requests
+        const pendingRequests = await getPendingBreakRequests(teamId);
+        setPendingBreakRequests(pendingRequests);
+
+        // Fetch entitlement notifications
+        const entitlementNotifs = await getEntitlementNotifications(teamId);
+        setEntitlementNotifications(entitlementNotifs);
 
         roles.forEach((record) => {
           if (record.role === 'super_admin') {
@@ -747,6 +766,50 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
   };
 
 
+  const handleApproveBreak = async (breakId: string) => {
+    setApprovingBreakId(breakId);
+
+    try {
+      await approveBreak(breakId, user.id);
+      toast({
+        title: 'Break approved',
+        description: 'The teammate can now take their break.',
+      });
+      await fetchAdminData();
+    } catch (error: any) {
+      console.error('Failed to approve break', error);
+      toast({
+        title: 'Unable to approve break',
+        description: error.message ?? 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setApprovingBreakId(null);
+    }
+  };
+
+  const handleDenyBreak = async (breakId: string) => {
+    setDenyingBreakId(breakId);
+
+    try {
+      await denyBreak(breakId, user.id, 'Denied by admin');
+      toast({
+        title: 'Break denied',
+        description: 'The teammate has been notified.',
+      });
+      await fetchAdminData();
+    } catch (error: any) {
+      console.error('Failed to deny break', error);
+      toast({
+        title: 'Unable to deny break',
+        description: error.message ?? 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDenyingBreakId(null);
+    }
+  };
+
   const handleForceEndBreak = async (breakId: string) => {
     setForceEndingBreakId(breakId);
 
@@ -766,6 +829,28 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
       });
     } finally {
       setForceEndingBreakId(null);
+    }
+  };
+
+  const handleAcknowledgeNotification = async (notificationId: string) => {
+    setAcknowledgingNotificationId(notificationId);
+
+    try {
+      await acknowledgeEntitlementNotification(notificationId, user.id);
+      toast({
+        title: 'Notification acknowledged',
+        description: 'The entitlement notification has been marked as read.',
+      });
+      await fetchAdminData();
+    } catch (error: any) {
+      console.error('Failed to acknowledge notification', error);
+      toast({
+        title: 'Unable to acknowledge notification',
+        description: error.message ?? 'Please try again shortly.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAcknowledgingNotificationId(null);
     }
   };
 
@@ -1344,6 +1429,141 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             </Card>
           </section>
         )}
+
+        <section className=\"grid grid-cols-1 gap-6 lg:grid-cols-2\">
+          <Card className=\"border-yellow/30 bg-card/50 backdrop-blur\">
+            <CardHeader className=\"flex flex-row items-center justify-between\">
+              <div>
+                <CardTitle className=\"flex items-center gap-2 text-lg\">
+                  <Hourglass className=\"h-5 w-5 text-yellow\" />
+                  Pending Break Requests
+                </CardTitle>
+                <CardDescription>Review and approve break requests from your team.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {pendingBreakRequests.length === 0 ? (
+                <p className=\"text-sm text-muted-foreground\">No pending break requests at the moment.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className=\"border-yellow/10\">
+                      <TableHead className=\"text-muted-foreground\">Teammate</TableHead>
+                      <TableHead className=\"text-muted-foreground\">Type</TableHead>
+                      <TableHead className=\"text-muted-foreground\">Team</TableHead>
+                      <TableHead className=\"text-muted-foreground\">Requested</TableHead>
+                      <TableHead className=\"text-muted-foreground text-right\">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingBreakRequests.map((request) => (
+                      <TableRow key={request.break_id} className=\"border-yellow/10\">
+                        <TableCell className=\"font-medium text-foreground\">{request.user_name}</TableCell>
+                        <TableCell className=\"text-sm capitalize text-muted-foreground\">{request.break_type}</TableCell>
+                        <TableCell className=\"text-sm text-muted-foreground\">{request.team_name}</TableCell>
+                        <TableCell className=\"text-sm text-muted-foreground\">
+                          {new Date(request.requested_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </TableCell>
+                        <TableCell className=\"flex justify-end gap-2\">
+                          <Button
+                            size=\"sm\"
+                            className=\"bg-green-600 text-white hover:bg-green-700\"
+                            disabled={approvingBreakId === request.break_id || denyingBreakId === request.break_id}
+                            onClick={() => handleApproveBreak(request.break_id)}
+                          >
+                            {approvingBreakId === request.break_id ? (
+                              <Loader2 className=\"h-4 w-4 animate-spin\" />
+                            ) : (
+                              <CheckCircle2 className=\"h-4 w-4\" />
+                            )}
+                            <span className=\"ml-1\">Approve</span>
+                          </Button>
+                          <Button
+                            size=\"sm\"
+                            variant=\"outline\"
+                            className=\"border-red-500/40 text-red-500 hover:bg-red-500/10\"
+                            disabled={approvingBreakId === request.break_id || denyingBreakId === request.break_id}
+                            onClick={() => handleDenyBreak(request.break_id)}
+                          >
+                            {denyingBreakId === request.break_id ? (
+                              <Loader2 className=\"h-4 w-4 animate-spin\" />
+                            ) : (
+                              <Ban className=\"h-4 w-4\" />
+                            )}
+                            <span className=\"ml-1\">Deny</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-500/30 bg-card/50 backdrop-blur">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <AlertCircle className="h-5 w-5 text-red-500" />
+                  Entitlement Exceeded
+                </CardTitle>
+                <CardDescription>Team members who have exceeded their daily break entitlements.</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {entitlementNotifications.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No entitlement violations at the moment.</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-red-500/10">
+                      <TableHead className="text-muted-foreground">Teammate</TableHead>
+                      <TableHead className="text-muted-foreground">Type</TableHead>
+                      <TableHead className="text-muted-foreground">Team</TableHead>
+                      <TableHead className="text-muted-foreground">Exceeded</TableHead>
+                      <TableHead className="text-muted-foreground">Date</TableHead>
+                      <TableHead className="text-muted-foreground text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entitlementNotifications.map((notification) => (
+                      <TableRow key={notification.notification_id} className="border-red-500/10">
+                        <TableCell className="font-medium text-foreground">{notification.user_name}</TableCell>
+                        <TableCell className="text-sm capitalize text-muted-foreground">
+                          {notification.notification_type === 'micro_break_exceeded' ? 'Micro-break' : 'Lunch'}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{notification.team_name}</TableCell>
+                        <TableCell className="text-sm text-red-500 font-medium">
+                          +{notification.exceeded_amount}min
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(notification.entitlement_date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-blue-500/40 text-blue-500 hover:bg-blue-500/10"
+                            disabled={acknowledgingNotificationId === notification.notification_id}
+                            onClick={() => handleAcknowledgeNotification(notification.notification_id)}
+                          >
+                            {acknowledgingNotificationId === notification.notification_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="h-4 w-4" />
+                            )}
+                            <span className="ml-1">Acknowledge</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </section>
       </main>
     </div>
   );

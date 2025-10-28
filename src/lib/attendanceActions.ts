@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { BreakType } from '@/types/attendance';
+import type { BreakType, BreakEntitlements, BreakEligibility, EntitlementNotification } from '@/types/attendance';
 
 export const checkIn = async (userId: string) => {
   const { data, error } = await supabase
@@ -47,54 +47,83 @@ export const checkOut = async (attendanceId: string) => {
 };
 
 /**
- * Toggle an instant break - starts if not active, ends if active
+ * Request a break - requires admin approval unless team availability is low
+ * Now includes timing and entitlement checks
  */
-export const toggleInstantBreak = async (
+export const requestBreak = async (
   userId: string, 
   attendanceId: string, 
-  breakType: BreakType
+  breakType: BreakType,
+  teamId?: string | null
 ) => {
-  // Check if there's an active break of this type
+  // Use the database function to request break (includes all checks)
+  const { data, error } = await supabase.rpc('request_break', {
+    p_user_id: userId,
+    p_attendance_id: attendanceId,
+    p_break_type: breakType,
+    p_team_id: teamId || null
+  });
+
+  if (error) throw error;
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to request break');
+  }
+
+  return {
+    action: data.instant_approval ? 'started' as const : 'requested' as const,
+    data: { id: data.break_id, status: data.status },
+    instantApproval: data.instant_approval,
+    workDurationMinutes: data.work_duration_minutes,
+    microBreakRemaining: data.micro_break_remaining,
+    lunchBreakRemaining: data.lunch_break_remaining
+  };
+};
+
+/**
+ * End an active break
+ */
+export const endBreak = async (breakId: string) => {
+  const { data, error } = await supabase
+    .from('breaks')
+    .update({
+      ended_at: new Date().toISOString(),
+      status: 'completed',
+    })
+    .eq('id', breakId)
+    .eq('status', 'active')
+    .select()
+    .single();
+
+  if (error) throw error;
+  return { action: 'ended' as const, data };
+};
+
+/**
+ * Toggle a break - requests if none active, ends if active
+ */
+export const toggleBreak = async (
+  userId: string, 
+  attendanceId: string, 
+  breakType: BreakType,
+  teamId?: string | null
+) => {
+  // Check if there's an active break
   const { data: activeBreak } = await supabase
     .from('breaks')
     .select('*')
     .eq('user_id', userId)
     .eq('attendance_id', attendanceId)
-    .eq('type', breakType)
     .eq('status', 'active')
     .is('ended_at', null)
     .maybeSingle();
 
   if (activeBreak) {
     // End the active break
-    const { data, error } = await supabase
-      .from('breaks')
-      .update({
-        ended_at: new Date().toISOString(),
-        status: 'completed',
-      })
-      .eq('id', activeBreak.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { action: 'ended' as const, data };
+    return await endBreak(activeBreak.id);
   } else {
-    // Start a new break
-    const { data, error } = await supabase
-      .from('breaks')
-      .insert({
-        user_id: userId,
-        attendance_id: attendanceId,
-        type: breakType,
-        status: 'active',
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return { action: 'started' as const, data };
+    // Request a new break
+    return await requestBreak(userId, attendanceId, breakType, teamId);
   }
 };
 
@@ -153,6 +182,47 @@ export const endAllActiveBreaks = async (attendanceId: string) => {
   return data;
 };
 
+// Admin functions for managing break requests
+export const approveBreak = async (breakId: string, adminId: string) => {
+  const { data, error } = await supabase.rpc('approve_break', {
+    p_break_id: breakId,
+    p_admin_id: adminId
+  });
+
+  if (error) throw error;
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to approve break');
+  }
+
+  return data;
+};
+
+export const denyBreak = async (breakId: string, adminId: string, reason?: string) => {
+  const { data, error } = await supabase.rpc('deny_break', {
+    p_break_id: breakId,
+    p_admin_id: adminId,
+    p_reason: reason || null
+  });
+
+  if (error) throw error;
+  
+  if (!data.success) {
+    throw new Error(data.error || 'Failed to deny break');
+  }
+
+  return data;
+};
+
+export const getPendingBreakRequests = async (adminTeamId?: string | null) => {
+  const { data, error } = await supabase.rpc('get_pending_break_requests', {
+    p_admin_team_id: adminTeamId || null
+  });
+
+  if (error) throw error;
+  return data || [];
+};
+
 // Admin functions for forcing break end
 export const forceEndBreak = async (breakId: string, adminId: string, reason?: string) => {
   const now = new Date().toISOString();
@@ -175,5 +245,52 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
     throw new Error('Unable to force end this break. It may have already completed.');
   }
 
+  return data;
+};
+
+// Break entitlement functions
+export const getDailyBreakEntitlements = async (userId: string, date?: string): Promise<BreakEntitlements> => {
+  const { data, error } = await supabase.rpc('get_daily_break_entitlements', {
+    p_user_id: userId,
+    p_date: date || new Date().toISOString().split('T')[0]
+  });
+
+  if (error) throw error;
+  return data[0];
+};
+
+export const checkBreakEligibility = async (
+  userId: string, 
+  attendanceId: string, 
+  breakType: BreakType,
+  date?: string
+): Promise<BreakEligibility> => {
+  const { data, error } = await supabase.rpc('can_request_break', {
+    p_user_id: userId,
+    p_attendance_id: attendanceId,
+    p_break_type: breakType,
+    p_date: date || new Date().toISOString().split('T')[0]
+  });
+
+  if (error) throw error;
+  return data;
+};
+
+export const getEntitlementNotifications = async (adminTeamId?: string | null): Promise<EntitlementNotification[]> => {
+  const { data, error } = await supabase.rpc('get_entitlement_notifications', {
+    p_admin_team_id: adminTeamId || null
+  });
+
+  if (error) throw error;
+  return data || [];
+};
+
+export const acknowledgeEntitlementNotification = async (notificationId: string, adminId: string): Promise<boolean> => {
+  const { data, error } = await supabase.rpc('acknowledge_entitlement_notification', {
+    p_notification_id: notificationId,
+    p_admin_id: adminId
+  });
+
+  if (error) throw error;
   return data;
 };

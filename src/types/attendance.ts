@@ -8,7 +8,7 @@ export type AttendanceState =
 
 export type BreakType = 'coffee' | 'wc' | 'lunch';
 
-export type BreakStatus = 'active' | 'completed';
+export type BreakStatus = 'pending' | 'approved' | 'denied' | 'active' | 'completed';
 
 export type UserRole = 'employee' | 'admin' | 'super_admin';
 
@@ -31,9 +31,43 @@ export interface BreakRecord {
   started_at: string | null;
   ended_at: string | null;
   attendance_id: string | null;
+  team_id: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  denied_by: string | null;
+  denied_at: string | null;
+  denial_reason: string | null;
   created_at: string;
   reason: string | null;
   updated_at: string;
+}
+
+export interface BreakEntitlements {
+  micro_break_used: number;
+  lunch_break_used: number;
+  micro_break_limit: number;
+  lunch_break_limit: number;
+  micro_break_remaining: number;
+  lunch_break_remaining: number;
+}
+
+export interface BreakEligibility {
+  can_request: boolean;
+  reason: string;
+  work_duration_minutes: number;
+  micro_break_remaining: number;
+  lunch_break_remaining: number;
+}
+
+export interface EntitlementNotification {
+  notification_id: string;
+  user_id: string;
+  user_name: string;
+  team_name: string;
+  notification_type: 'micro_break_exceeded' | 'lunch_break_exceeded';
+  entitlement_date: string;
+  exceeded_amount: number;
+  created_at: string;
 }
 
 export interface DailyMetrics {
