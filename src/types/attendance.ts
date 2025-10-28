@@ -10,15 +10,11 @@ export type AttendanceState =
   | 'checked_out';
 
 export type BreakStatus =
-  | 'requested'
   | 'pending'
   | 'approved'
   | 'active'
-  | 'rejected'
   | 'denied'
-  | 'completed'
-  | 'force_ended'
-  | 'cancelled';
+  | 'completed';
 
 export type UserRole = 'employee' | 'admin' | 'super_admin';
 
@@ -41,11 +37,7 @@ export interface BreakRecord {
   started_at: string | null;
   ended_at: string | null;
   created_at: string;
-  requested_by?: string | null;
   approved_by?: string | null;
-  approved_at?: string | null;
-  ended_by?: string | null;
-  end_reason?: string | null;
   shift_id: string | null;
   reason: string | null;
 }

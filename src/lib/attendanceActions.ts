@@ -51,11 +51,8 @@ export const requestBreak = async (userId: string, type: BreakType = 'bathroom')
     .from('breaks')
     .insert({
       user_id: userId,
-      requested_by: userId,
       type,
-      status: 'requested',
-      started_at: null,
-      ended_at: null,
+      status: 'pending',
     })
     .select()
     .single();
@@ -90,14 +87,12 @@ export const cancelBreakRequest = async (userId: string, breakId: string, reason
   const { data, error } = await supabase
     .from('breaks')
     .update({
-      status: 'cancelled',
+      status: 'denied',
       ended_at: now,
-      ended_by: userId,
-      end_reason: reason ?? 'Cancelled by employee',
     })
     .eq('id', breakId)
     .eq('user_id', userId)
-    .in('status', ['requested', 'pending'])
+    .in('status', ['pending'])
     .select()
     .maybeSingle();
 
@@ -110,7 +105,7 @@ export const cancelBreakRequest = async (userId: string, breakId: string, reason
       })
       .eq('id', breakId)
       .eq('user_id', userId)
-      .in('status', ['requested', 'pending'])
+      .in('status', ['pending'])
       .select()
       .maybeSingle();
 
@@ -138,11 +133,10 @@ export const approveBreak = async (breakId: string, approverId: string) => {
     .from('breaks')
     .update({
       approved_by: approverId,
-      approved_at: now,
       status: 'approved',
     })
     .eq('id', breakId)
-    .in('status', ['requested', 'pending'])
+    .in('status', ['pending'])
     .select()
     .maybeSingle();
 
@@ -153,7 +147,7 @@ export const approveBreak = async (breakId: string, approverId: string) => {
         status: 'approved',
       })
       .eq('id', breakId)
-      .in('status', ['requested', 'pending'])
+      .in('status', ['pending'])
       .select()
       .maybeSingle();
 
@@ -181,12 +175,11 @@ export const rejectBreak = async (breakId: string, approverId: string, reason?: 
     .from('breaks')
     .update({
       approved_by: approverId,
-      approved_at: now,
-      status: 'rejected',
-      end_reason: reason ?? 'Rejected by admin',
+      status: 'denied',
+      ended_at: now,
     })
     .eq('id', breakId)
-    .in('status', ['requested', 'pending'])
+    .in('status', ['pending'])
     .select()
     .maybeSingle();
 
@@ -197,7 +190,7 @@ export const rejectBreak = async (breakId: string, approverId: string, reason?: 
         status: 'denied',
       })
       .eq('id', breakId)
-      .in('status', ['requested', 'pending'])
+      .in('status', ['pending'])
       .select()
       .maybeSingle();
 
@@ -283,8 +276,6 @@ export const endBreak = async (userId: string, breakId?: string) => {
     .from('breaks')
     .update({
       ended_at: now,
-      ended_by: userId,
-      end_reason: null,
       status: 'completed',
     })
     .eq('id', activeBreakId)
@@ -330,9 +321,7 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
     .from('breaks')
     .update({
       ended_at: now,
-      ended_by: adminId,
-      end_reason: reason ?? 'Force ended by admin',
-      status: 'force_ended',
+      status: 'completed',
     })
     .eq('id', breakId)
     .in('status', ['approved', 'active'])

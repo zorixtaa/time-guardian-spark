@@ -106,7 +106,6 @@ interface ManagedBreakRow {
   type: BreakRecord['type'];
   status: BreakRecord['status'];
   startedAt: string | null;
-  approvedAt: string | null;
   createdAt: string;
 }
 
@@ -262,7 +261,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         const breaksQuery = supabase
           .from('breaks')
           .select('*')
-          .in('status', ['requested', 'pending', 'approved', 'active']);
+          .in('status', ['pending', 'approved', 'active']);
 
           if (!isSuperAdmin) {
             breaksQuery.in('user_id', visibleUserIds);
@@ -318,7 +317,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         const roleByUser = new Map<string, UserRole>();
 
         const pendingRequests: BreakRequestRow[] = openBreaks
-          .filter((record) => record.status === 'requested' || record.status === 'pending')
+          .filter((record) => record.status === 'pending')
           .map((record) => ({
             id: record.id,
             userId: record.user_id,
@@ -336,7 +335,6 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             type: record.type,
             status: record.status,
             startedAt: record.started_at,
-            approvedAt: record.approved_at ?? null,
             createdAt: record.created_at,
           }));
 
@@ -1079,7 +1077,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
                   </TableHeader>
                   <TableBody>
                     {managedBreaks.map((record) => {
-                      const since = record.startedAt ?? record.approvedAt ?? record.createdAt;
+                      const since = record.startedAt ?? record.createdAt;
                       const statusLabel = record.status === 'approved' ? 'Approved' : 'Active';
                       const badgeClass =
                         record.status === 'active'

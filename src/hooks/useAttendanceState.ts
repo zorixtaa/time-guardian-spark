@@ -4,7 +4,6 @@ import type { AttendanceRecord, AttendanceState, BreakRecord } from '@/types/att
 import { useToast } from '@/hooks/use-toast';
 
 const OPEN_BREAK_STATUSES: ReadonlyArray<BreakRecord['status']> = [
-  'requested',
   'pending',
   'approved',
   'active',
@@ -79,8 +78,8 @@ export const useAttendanceState = (userId: string | undefined) => {
           return priorityDelta;
         }
 
-        const aTime = a.started_at ?? a.approved_at ?? a.created_at;
-        const bTime = b.started_at ?? b.approved_at ?? b.created_at;
+        const aTime = a.started_at ?? a.created_at;
+        const bTime = b.started_at ?? b.created_at;
 
         return new Date(bTime).getTime() - new Date(aTime).getTime();
       });
@@ -96,7 +95,7 @@ export const useAttendanceState = (userId: string | undefined) => {
           setState('on_lunch');
         } else if (currentLunch.status === 'approved') {
           setState('lunch_approved');
-        } else if (currentLunch.status === 'requested' || currentLunch.status === 'pending') {
+        } else if (currentLunch.status === 'pending') {
           setState('lunch_requested');
         } else {
           setState('checked_in');
@@ -110,7 +109,7 @@ export const useAttendanceState = (userId: string | undefined) => {
           setState('on_break');
         } else if (currentBreak.status === 'approved') {
           setState('break_approved');
-        } else if (currentBreak.status === 'requested' || currentBreak.status === 'pending') {
+        } else if (currentBreak.status === 'pending') {
           setState('break_requested');
         } else {
           setState('checked_in');
