@@ -294,7 +294,7 @@ const Dashboard = () => {
           title: 'Break Started',
           description: 'Take your time!',
         });
-      } else if (record.status === 'requested' || record.status === 'pending') {
+      } else if (record.status === 'pending') {
         toast({
           title: 'Break Requested',
           description: 'Waiting for approval…',
@@ -318,7 +318,7 @@ const Dashboard = () => {
   };
 
   const handleCancelBreakRequest = async () => {
-    if (!user || !activeBreak || !['requested', 'pending'].includes(activeBreak.status)) {
+    if (!user || !activeBreak || activeBreak.status !== 'pending') {
       toast({
         title: 'No pending break request',
         description: 'Refresh the page and try again.',
@@ -407,7 +407,7 @@ const Dashboard = () => {
           title: 'Lunch Started',
           description: 'Enjoy your meal!',
         });
-      } else if (record.status === 'requested' || record.status === 'pending') {
+      } else if (record.status === 'pending') {
         toast({
           title: 'Lunch Requested',
           description: 'Waiting for approval…',
@@ -431,7 +431,7 @@ const Dashboard = () => {
   };
 
   const handleCancelLunchRequest = async () => {
-    if (!user || !activeLunch || !['requested', 'pending'].includes(activeLunch.status)) {
+    if (!user || !activeLunch || activeLunch.status !== 'pending') {
       toast({
         title: 'No pending lunch request',
         description: 'Refresh the page and try again.',
