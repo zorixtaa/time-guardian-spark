@@ -1,19 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const isMissingColumnError = (error: any) => {
-  if (!error) return false;
-  if (error.code === '42703') return true;
-  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
-  return message.includes('column') && message.includes('does not exist');
-};
-
-const isConstraintViolation = (error: any) => {
-  if (!error) return false;
-  if (error.code === '23514') return true;
-  const message = typeof error.message === 'string' ? error.message.toLowerCase() : '';
-  return message.includes('violates check constraint') || message.includes('invalid input value for enum');
-};
-
 export const checkIn = async (userId: string) => {
   const { data, error } = await supabase
     .from('attendance')
@@ -45,8 +31,6 @@ export const checkOut = async (attendanceId: string) => {
 type BreakType = 'scheduled' | 'bathroom' | 'lunch' | 'emergency';
 
 export const requestBreak = async (userId: string, type: BreakType = 'bathroom') => {
-  const now = new Date().toISOString();
-
   const { data, error } = await supabase
     .from('breaks')
     .insert({
@@ -59,28 +43,8 @@ export const requestBreak = async (userId: string, type: BreakType = 'bathroom')
     .select()
     .single();
 
-  if (!error && data) {
-    return data;
-  }
-
-  if (error && (isMissingColumnError(error) || isConstraintViolation(error))) {
-    const fallback = await supabase
-      .from('breaks')
-      .insert({
-        user_id: userId,
-        type,
-        status: 'active',
-        started_at: now,
-      })
-      .select()
-      .single();
-
-    if (fallback.error) throw fallback.error;
-    return fallback.data;
-  }
-
   if (error) throw error;
-  throw new Error('Unable to create break request.');
+  return data;
 };
 
 export const cancelBreakRequest = async (userId: string, breakId: string, reason?: string) => {
