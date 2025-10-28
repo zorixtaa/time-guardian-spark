@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAttendanceState } from '@/hooks/useAttendanceState';
 import { useAttendanceMetrics } from '@/hooks/useAttendanceMetrics';
 import { useXpSystem } from '@/hooks/useXpSystem';
+import { useBreakEntitlements } from '@/hooks/useBreakEntitlements';
 import { StateIndicator } from '@/components/attendance/StateIndicator';
 import { ActionButtons } from '@/components/attendance/ActionButtons';
 import {
@@ -64,6 +65,27 @@ const Dashboard = () => {
     refresh: refreshMetrics,
   } = useAttendanceMetrics(user?.id);
   const xpState = useXpSystem(user?.id);
+  const {
+    entitlements,
+    loading: entitlementsLoading,
+    fetchEntitlements,
+  } = useBreakEntitlements(user?.id, currentAttendance?.id);
+
+  // Calculate work duration since last break or clock-in
+  const workDurationMinutes = useMemo(() => {
+    if (!currentAttendance) return 0;
+    
+    const now = new Date();
+    const clockInTime = new Date(currentAttendance.clock_in_at);
+    
+    // Find the most recent break end time
+    const lastBreakEnd = activeBreaks
+      .filter(break_ => break_.ended_at)
+      .sort((a, b) => new Date(b.ended_at!).getTime() - new Date(a.ended_at!).getTime())[0];
+    
+    const startTime = lastBreakEnd ? new Date(lastBreakEnd.ended_at!) : clockInTime;
+    return Math.floor((now.getTime() - startTime.getTime()) / (1000 * 60));
+  }, [currentAttendance, activeBreaks]);
 
   const ensureProfile = useCallback(
     async (currentUser: User) => {
@@ -296,7 +318,7 @@ const Dashboard = () => {
           description: 'Back to work!',
         });
       }
-      await Promise.all([refresh(), refreshMetrics()]);
+      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -329,7 +351,7 @@ const Dashboard = () => {
           description: 'Welcome back!',
         });
       }
-      await Promise.all([refresh(), refreshMetrics()]);
+      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -362,7 +384,7 @@ const Dashboard = () => {
           description: 'Back to work!',
         });
       }
-      await Promise.all([refresh(), refreshMetrics()]);
+      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -534,12 +556,14 @@ const Dashboard = () => {
             <ActionButtons
               state={state}
               activeBreaks={activeBreaks}
+              entitlements={entitlements}
+              workDurationMinutes={workDurationMinutes}
               onCheckIn={handleCheckIn}
               onCheckOut={handleCheckOut}
               onRequestCoffee={handleRequestCoffee}
               onRequestWc={handleRequestWc}
               onRequestLunch={handleRequestLunch}
-              loading={actionLoading || attendanceLoading}
+              loading={actionLoading || attendanceLoading || entitlementsLoading}
             />
           </CardContent>
         </Card>
