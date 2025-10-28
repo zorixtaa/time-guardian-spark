@@ -183,20 +183,10 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         const endOfDay = new Date(now);
         endOfDay.setHours(23, 59, 59, 999);
 
-        const profileQuery = supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('id, display_name, team_id')
           .order('display_name', { ascending: true });
-
-        if (!isSuperAdmin) {
-          if (teamId) {
-            profileQuery.eq('team_id', teamId);
-          } else {
-            profileQuery.is('team_id', null);
-          }
-        }
-
-        const { data: profileData, error: profileError } = await profileQuery;
 
         if (profileError) {
           throw profileError;
@@ -262,7 +252,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         const breaksQuery = supabase
           .from('breaks')
           .select('*')
-          .in('status', ['requested', 'pending', 'approved', 'active']);
+          .in('status', ['pending', 'approved', 'active']);
 
           if (!isSuperAdmin) {
             breaksQuery.in('user_id', visibleUserIds);
@@ -318,7 +308,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         const roleByUser = new Map<string, UserRole>();
 
         const pendingRequests: BreakRequestRow[] = openBreaks
-          .filter((record) => record.status === 'requested' || record.status === 'pending')
+          .filter((record) => record.status === 'pending')
           .map((record) => ({
             id: record.id,
             userId: record.user_id,
@@ -336,7 +326,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             type: record.type,
             status: record.status,
             startedAt: record.started_at,
-            approvedAt: record.approved_at ?? null,
+            approvedAt: null,
             createdAt: record.created_at,
           }));
 
@@ -1079,7 +1069,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
                   </TableHeader>
                   <TableBody>
                     {managedBreaks.map((record) => {
-                      const since = record.startedAt ?? record.approvedAt ?? record.createdAt;
+                      const since = record.startedAt ?? record.createdAt;
                       const statusLabel = record.status === 'approved' ? 'Approved' : 'Active';
                       const badgeClass =
                         record.status === 'active'
