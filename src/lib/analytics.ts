@@ -215,7 +215,7 @@ export const getBreakStatistics = async (
   });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as any;
 };
 
 // ============================================================================
@@ -237,7 +237,7 @@ export const getRecentActivity = async (
   });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as ActivityLogEntry[];
 };
 
 // ============================================================================

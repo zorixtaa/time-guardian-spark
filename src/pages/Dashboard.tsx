@@ -124,6 +124,7 @@ const Dashboard = () => {
         .from('profiles')
         .insert({
           id: currentUser.id,
+          user_id: currentUser.id,
           display_name: fallbackName,
           team_id: null,
         })
@@ -301,7 +302,7 @@ const Dashboard = () => {
     if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'coffee', teamId);
+      const result = await toggleBreak(user.id, currentAttendance.id, 'coffee', userTeamId);
       if (result.action === 'started') {
         toast({
           title: 'Coffee Break Started',
@@ -334,7 +335,7 @@ const Dashboard = () => {
     if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'wc', teamId);
+      const result = await toggleBreak(user.id, currentAttendance.id, 'wc', userTeamId);
       if (result.action === 'started') {
         toast({
           title: 'WC Break Started',
@@ -367,7 +368,7 @@ const Dashboard = () => {
     if (!user || !currentAttendance) return;
     setActionLoading(true);
     try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'lunch', teamId);
+      const result = await toggleBreak(user.id, currentAttendance.id, 'lunch', userTeamId);
       if (result.action === 'started') {
         toast({
           title: 'Lunch Break Started',

@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_notifications: {
+        Row: {
+          category: string
+          created_at: string | null
+          id: string
+          is_read: boolean
+          message: string | null
+          overage_minutes: number
+          read_at: string | null
+          read_by: string | null
+          threshold_minutes: number
+          type: string
+          user_id: string
+          value_minutes: number
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          overage_minutes?: number
+          read_at?: string | null
+          read_by?: string | null
+          threshold_minutes: number
+          type: string
+          user_id: string
+          value_minutes: number
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          id?: string
+          is_read?: boolean
+          message?: string | null
+          overage_minutes?: number
+          read_at?: string | null
+          read_by?: string | null
+          threshold_minutes?: number
+          type?: string
+          user_id?: string
+          value_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_notifications_read_by_fkey"
+            columns: ["read_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       announcements: {
         Row: {
           body: string
@@ -170,45 +230,73 @@ export type Database = {
       }
       breaks: {
         Row: {
+          approved_at: string | null
           approved_by: string | null
+          attendance_id: string | null
           created_at: string
+          denial_reason: string | null
+          denied_at: string | null
+          denied_by: string | null
+          emergency_reason: string | null
           ended_at: string | null
           id: string
           reason: string | null
           shift_id: string | null
-          started_at: string
+          started_at: string | null
           status: Database["public"]["Enums"]["break_status"]
-          type: Database["public"]["Enums"]["break_type"]
+          team_id: string | null
+          type: Database["public"]["Enums"]["break_type_enum"]
           updated_at: string
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
           approved_by?: string | null
+          attendance_id?: string | null
           created_at?: string
+          denial_reason?: string | null
+          denied_at?: string | null
+          denied_by?: string | null
+          emergency_reason?: string | null
           ended_at?: string | null
           id?: string
           reason?: string | null
           shift_id?: string | null
-          started_at?: string
+          started_at?: string | null
           status?: Database["public"]["Enums"]["break_status"]
-          type: Database["public"]["Enums"]["break_type"]
+          team_id?: string | null
+          type?: Database["public"]["Enums"]["break_type_enum"]
           updated_at?: string
           user_id: string
         }
         Update: {
+          approved_at?: string | null
           approved_by?: string | null
+          attendance_id?: string | null
           created_at?: string
+          denial_reason?: string | null
+          denied_at?: string | null
+          denied_by?: string | null
+          emergency_reason?: string | null
           ended_at?: string | null
           id?: string
           reason?: string | null
           shift_id?: string | null
-          started_at?: string
+          started_at?: string | null
           status?: Database["public"]["Enums"]["break_status"]
-          type?: Database["public"]["Enums"]["break_type"]
+          team_id?: string | null
+          type?: Database["public"]["Enums"]["break_type_enum"]
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "breaks_attendance_id_fkey"
+            columns: ["attendance_id"]
+            isOneToOne: false
+            referencedRelation: "attendance"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "breaks_shift_id_fkey"
             columns: ["shift_id"]
@@ -216,7 +304,47 @@ export type Database = {
             referencedRelation: "shifts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "breaks_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      company_policies: {
+        Row: {
+          created_at: string | null
+          effective_from: string
+          emergency_break_cooldown_minutes: number
+          emergency_break_daily_limit_minutes: number
+          id: string
+          lunch_break_daily_limit_minutes: number
+          microbreak_daily_limit_minutes: number
+          min_minutes_before_break: number
+        }
+        Insert: {
+          created_at?: string | null
+          effective_from?: string
+          emergency_break_cooldown_minutes?: number
+          emergency_break_daily_limit_minutes?: number
+          id?: string
+          lunch_break_daily_limit_minutes?: number
+          microbreak_daily_limit_minutes?: number
+          min_minutes_before_break?: number
+        }
+        Update: {
+          created_at?: string | null
+          effective_from?: string
+          emergency_break_cooldown_minutes?: number
+          emergency_break_daily_limit_minutes?: number
+          id?: string
+          lunch_break_daily_limit_minutes?: number
+          microbreak_daily_limit_minutes?: number
+          min_minutes_before_break?: number
+        }
+        Relationships: []
       }
       files: {
         Row: {
@@ -315,6 +443,7 @@ export type Database = {
           id: string
           team_id: string | null
           updated_at: string
+          user_id: string
         }
         Insert: {
           avatar_url?: string | null
@@ -323,6 +452,7 @@ export type Database = {
           id: string
           team_id?: string | null
           updated_at?: string
+          user_id: string
         }
         Update: {
           avatar_url?: string | null
@@ -331,6 +461,7 @@ export type Database = {
           id?: string
           team_id?: string | null
           updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
@@ -525,7 +656,203 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acknowledge_entitlement_notification: {
+        Args: { p_admin_id: string; p_notification_id: string }
+        Returns: boolean
+      }
+      approve_break: {
+        Args: { p_admin_id: string; p_break_id: string }
+        Returns: Json
+      }
+      can_request_break: {
+        Args: {
+          p_attendance_id: string
+          p_break_type: Database["public"]["Enums"]["break_type_enum"]
+          p_date?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
+      create_admin_notification: {
+        Args: {
+          _category: string
+          _message?: string
+          _overage_minutes?: number
+          _threshold_minutes: number
+          _type: string
+          _user_id: string
+          _value_minutes: number
+        }
+        Returns: string
+      }
+      deny_break: {
+        Args: { p_admin_id: string; p_break_id: string; p_reason?: string }
+        Returns: Json
+      }
+      get_break_statistics: {
+        Args: {
+          p_end_date?: string
+          p_start_date?: string
+          p_team_id?: string
+          p_user_id?: string
+        }
+        Returns: {
+          avg_daily_hours: number
+          coffee_break_count: number
+          effective_work_hours: number
+          lunch_break_count: number
+          total_break_hours: number
+          total_days_worked: number
+          total_hours_clocked: number
+          wc_break_count: number
+        }[]
+      }
+      get_current_policy: {
+        Args: never
+        Returns: {
+          emergency_break_cooldown_minutes: number
+          emergency_break_daily_limit_minutes: number
+          lunch_break_daily_limit_minutes: number
+          microbreak_daily_limit_minutes: number
+          min_minutes_before_break: number
+        }[]
+      }
+      get_daily_break_entitlements: {
+        Args: { p_date?: string; p_user_id: string }
+        Returns: {
+          lunch_break_limit: number
+          lunch_break_remaining: number
+          lunch_break_used: number
+          micro_break_limit: number
+          micro_break_remaining: number
+          micro_break_used: number
+        }[]
+      }
+      get_department_productivity: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          attendance_rate: number
+          avg_effective_hours: number
+          avg_hours_per_member: number
+          team_id: string
+          team_name: string
+          total_breaks: number
+          total_members: number
+        }[]
+      }
+      get_emergency_break_minutes: {
+        Args: { _date?: string; _user_id: string }
+        Returns: number
+      }
+      get_entitlement_notifications: {
+        Args: { p_admin_team_id?: string }
+        Returns: {
+          created_at: string
+          entitlement_date: string
+          exceeded_amount: number
+          notification_id: string
+          notification_type: string
+          team_name: string
+          user_id: string
+          user_name: string
+        }[]
+      }
+      get_lunch_break_minutes: {
+        Args: { _date?: string; _user_id: string }
+        Returns: number
+      }
+      get_micro_break_minutes: {
+        Args: { _date?: string; _user_id: string }
+        Returns: number
+      }
+      get_minutes_since_last_work: {
+        Args: { _user_id: string }
+        Returns: number
+      }
+      get_pending_break_requests: {
+        Args: { p_admin_team_id?: string }
+        Returns: {
+          break_id: string
+          break_type: Database["public"]["Enums"]["break_type_enum"]
+          created_at: string
+          team_id: string
+          user_id: string
+          user_name: string
+        }[]
+      }
+      get_recent_activity: {
+        Args: { p_limit?: number; p_team_id?: string }
+        Returns: {
+          activity_description: string
+          activity_id: string
+          activity_type: string
+          metadata: Json
+          occurred_at: string
+          user_id: string
+          user_name: string
+        }[]
+      }
+      get_streak_leaderboard: {
+        Args: { p_limit?: number; p_team_id?: string }
+        Returns: {
+          current_streak: number
+          display_name: string
+          rank: number
+          team_name: string
+          user_id: string
+        }[]
+      }
+      get_team_daily_stats: {
+        Args: { p_date?: string; p_team_id?: string }
+        Returns: {
+          avg_hours_per_person: number
+          currently_active: number
+          on_coffee_break: number
+          on_lunch_break: number
+          on_wc_break: number
+          total_hours_worked: number
+          total_members_checked_in: number
+        }[]
+      }
+      get_user_daily_breakdown: {
+        Args: { p_end_date: string; p_start_date: string; p_user_id: string }
+        Returns: {
+          break_hours: number
+          clock_in_time: string
+          clock_out_time: string
+          coffee_breaks: number
+          effective_hours: number
+          lunch_breaks: number
+          total_hours: number
+          wc_breaks: number
+          work_date: string
+        }[]
+      }
       get_user_team: { Args: { _user_id: string }; Returns: string }
+      get_user_work_summary: {
+        Args: { p_end_date: string; p_start_date: string; p_user_id: string }
+        Returns: {
+          avg_daily_hours: number
+          coffee_break_count: number
+          effective_work_hours: number
+          lunch_break_count: number
+          total_break_hours: number
+          total_days_worked: number
+          total_hours_clocked: number
+          wc_break_count: number
+        }[]
+      }
+      get_xp_leaderboard: {
+        Args: { p_limit?: number; p_team_id?: string }
+        Returns: {
+          display_name: string
+          level: number
+          rank: number
+          team_name: string
+          total_xp: number
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -533,11 +860,26 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_emergency_break_available: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
+      is_user_on_shift: { Args: { _user_id: string }; Returns: boolean }
+      request_break: {
+        Args: {
+          p_attendance_id: string
+          p_break_type: Database["public"]["Enums"]["break_type_enum"]
+          p_team_id?: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "super_admin" | "admin" | "employee"
       break_status: "pending" | "approved" | "denied" | "active" | "completed"
-      break_type: "scheduled" | "bathroom" | "lunch" | "emergency"
+      break_type: "coffee" | "wc" | "lunch" | "emergency"
+      break_type_enum: "coffee" | "wc" | "lunch" | "emergency"
       session_status: "active" | "ended"
     }
     CompositeTypes: {
@@ -668,7 +1010,8 @@ export const Constants = {
     Enums: {
       app_role: ["super_admin", "admin", "employee"],
       break_status: ["pending", "approved", "denied", "active", "completed"],
-      break_type: ["scheduled", "bathroom", "lunch", "emergency"],
+      break_type: ["coffee", "wc", "lunch", "emergency"],
+      break_type_enum: ["coffee", "wc", "lunch", "emergency"],
       session_status: ["active", "ended"],
     },
   },

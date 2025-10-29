@@ -66,17 +66,19 @@ export const requestBreak = async (
 
   if (error) throw error;
   
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to request break');
+  const result = data as any; // Cast from Json to object
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to request break');
   }
 
   return {
-    action: data.instant_approval ? 'started' as const : 'requested' as const,
-    data: { id: data.break_id, status: data.status },
-    instantApproval: data.instant_approval,
-    workDurationMinutes: data.work_duration_minutes,
-    microBreakRemaining: data.micro_break_remaining,
-    lunchBreakRemaining: data.lunch_break_remaining
+    action: result.instant_approval ? 'started' as const : 'requested' as const,
+    data: { id: result.break_id, status: result.status },
+    instantApproval: result.instant_approval,
+    workDurationMinutes: result.work_duration_minutes || 0,
+    microBreakRemaining: result.micro_break_remaining || 30,
+    lunchBreakRemaining: result.lunch_break_remaining || 60
   };
 };
 
@@ -191,11 +193,13 @@ export const approveBreak = async (breakId: string, adminId: string) => {
 
   if (error) throw error;
   
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to approve break');
+  const result = data as any;
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to approve break');
   }
 
-  return data;
+  return result;
 };
 
 export const denyBreak = async (breakId: string, adminId: string, reason?: string) => {
@@ -207,11 +211,13 @@ export const denyBreak = async (breakId: string, adminId: string, reason?: strin
 
   if (error) throw error;
   
-  if (!data.success) {
-    throw new Error(data.error || 'Failed to deny break');
+  const result = data as any;
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to deny break');
   }
 
-  return data;
+  return result;
 };
 
 export const getPendingBreakRequests = async (adminTeamId?: string | null) => {
@@ -273,7 +279,15 @@ export const checkBreakEligibility = async (
   });
 
   if (error) throw error;
-  return data;
+  
+  const result = data as any;
+  return {
+    can_request: result.can_request || false,
+    reason: result.reason || '',
+    work_duration_minutes: result.work_duration_minutes || 0,
+    micro_break_remaining: result.micro_break_remaining || 30,
+    lunch_break_remaining: result.lunch_break_remaining || 60
+  };
 };
 
 export const getEntitlementNotifications = async (adminTeamId?: string | null): Promise<EntitlementNotification[]> => {
@@ -282,7 +296,7 @@ export const getEntitlementNotifications = async (adminTeamId?: string | null): 
   });
 
   if (error) throw error;
-  return data || [];
+  return (data || []) as EntitlementNotification[];
 };
 
 export const acknowledgeEntitlementNotification = async (notificationId: string, adminId: string): Promise<boolean> => {
@@ -292,5 +306,5 @@ export const acknowledgeEntitlementNotification = async (notificationId: string,
   });
 
   if (error) throw error;
-  return data;
+  return Boolean(data);
 };
