@@ -42,6 +42,10 @@ const formatDaysLabel = (days: number) => {
   return `${days} ${suffix}`;
 };
 
+const getErrorMessage = (error: unknown, fallback: string) => (
+  error instanceof Error ? error.message : fallback
+);
+
 const Dashboard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -133,13 +137,13 @@ const Dashboard = () => {
         .single();
 
       if (insertError) {
-        if ((insertError as any).code === '42P01') {
+        if (insertError.code === '42P01') {
           setProfileName(fallbackName);
           setUserTeamId(null);
           return null;
         }
 
-        if ((insertError as any).code === '23505') {
+        if (insertError.code === '23505') {
           const { data: retryProfile, error: retryError } = await supabase
             .from('profiles')
             .select('id, display_name, team_id')
@@ -182,11 +186,11 @@ const Dashboard = () => {
         await ensureProfile(currentUser);
 
         setRole((roleData?.role as UserRole) ?? 'employee');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error fetching user role:', error);
         toast({
           title: 'Unable to determine access level',
-          description: 'Showing the employee dashboard for now.',
+          description: getErrorMessage(error, 'Showing the employee dashboard for now.'),
           variant: 'destructive',
         });
         setRole('employee');
@@ -260,10 +264,10 @@ const Dashboard = () => {
         description: 'Your shift has started',
       });
       await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Unable to check in.'),
         variant: 'destructive',
       });
     } finally {
@@ -288,10 +292,10 @@ const Dashboard = () => {
         description: 'Have a great day!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Unable to check out.'),
         variant: 'destructive',
       });
     } finally {
@@ -321,10 +325,10 @@ const Dashboard = () => {
         });
       }
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Unable to request a coffee break.'),
         variant: 'destructive',
       });
     } finally {
@@ -354,10 +358,10 @@ const Dashboard = () => {
         });
       }
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Unable to request a WC break.'),
         variant: 'destructive',
       });
     } finally {
@@ -387,10 +391,10 @@ const Dashboard = () => {
         });
       }
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Unable to request a lunch break.'),
         variant: 'destructive',
       });
     } finally {
@@ -408,10 +412,10 @@ const Dashboard = () => {
         description: 'Your break timer is now running',
       });
       await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Error',
-        description: error.message,
+        description: getErrorMessage(error, 'Unable to start the approved break.'),
         variant: 'destructive',
       });
     } finally {

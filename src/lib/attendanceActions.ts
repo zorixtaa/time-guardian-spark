@@ -1,5 +1,42 @@
 import { supabase } from '@/integrations/supabase/client';
-import type { BreakType, BreakEntitlements, BreakEligibility, EntitlementNotification } from '@/types/attendance';
+import type {
+  BreakType,
+  BreakStatus,
+  BreakEntitlements,
+  BreakEligibility,
+  EntitlementNotification,
+} from '@/types/attendance';
+
+interface RequestBreakResponse {
+  success: boolean;
+  break_id?: string;
+  instant_approval?: boolean;
+  status?: BreakStatus;
+  work_duration_minutes?: number | null;
+  micro_break_remaining?: number | null;
+  lunch_break_remaining?: number | null;
+  error?: string;
+}
+
+interface StartApprovedBreakResponse {
+  success: boolean;
+  break_id?: string;
+  started_at?: string;
+  error?: string;
+}
+
+interface BreakApprovalResponse {
+  success: boolean;
+  error?: string;
+}
+
+interface BreakEligibilityResponse {
+  can_request?: boolean;
+  reason?: string;
+  work_duration_minutes?: number | null;
+  micro_break_remaining?: number | null;
+  lunch_break_remaining?: number | null;
+}
 
 export const checkIn = async (userId: string) => {
   const { data, error } = await supabase
@@ -51,8 +88,8 @@ export const checkOut = async (attendanceId: string) => {
  * Now includes timing and entitlement checks
  */
 export const requestBreak = async (
-  userId: string, 
-  attendanceId: string, 
+  userId: string,
+  attendanceId: string,
   breakType: BreakType,
   teamId?: string | null
 ) => {
@@ -65,20 +102,28 @@ export const requestBreak = async (
   });
 
   if (error) throw error;
-  
-  const result = data as any; // Cast from Json to object
-  
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to request break');
+
+  const result = data as RequestBreakResponse;
+
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to request break');
+  }
+
+  const breakId = result.break_id;
+  if (!breakId) {
+    throw new Error('Break request completed without an identifier');
   }
 
   return {
-    action: result.instant_approval ? 'started' as const : 'requested' as const,
-    data: { id: result.break_id, status: result.status },
-    instantApproval: result.instant_approval,
-    workDurationMinutes: result.work_duration_minutes || 0,
-    microBreakRemaining: result.micro_break_remaining || 30,
-    lunchBreakRemaining: result.lunch_break_remaining || 60
+    action: result.instant_approval ? ('started' as const) : ('requested' as const),
+    data: {
+      id: breakId,
+      status: (result.status ?? 'pending') as BreakStatus,
+    },
+    instantApproval: Boolean(result.instant_approval),
+    workDurationMinutes: result.work_duration_minutes ?? 0,
+    microBreakRemaining: result.micro_break_remaining ?? 30,
+    lunchBreakRemaining: result.lunch_break_remaining ?? 60,
   };
 };
 
@@ -92,11 +137,11 @@ export const startApprovedBreak = async (breakId: string, userId: string) => {
   });
 
   if (error) throw error;
-  
-  const result = data as any;
-  
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to start break');
+
+  const result = data as StartApprovedBreakResponse;
+
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to start break');
   }
 
   return result;
@@ -212,11 +257,11 @@ export const approveBreak = async (breakId: string, adminId: string) => {
   });
 
   if (error) throw error;
-  
-  const result = data as any;
-  
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to approve break');
+
+  const result = data as BreakApprovalResponse;
+
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to approve break');
   }
 
   return result;
@@ -230,11 +275,11 @@ export const denyBreak = async (breakId: string, adminId: string, reason?: strin
   });
 
   if (error) throw error;
-  
-  const result = data as any;
-  
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to deny break');
+
+  const result = data as BreakApprovalResponse;
+
+  if (!result?.success) {
+    throw new Error(result?.error || 'Failed to deny break');
   }
 
   return result;
@@ -282,7 +327,11 @@ export const getDailyBreakEntitlements = async (userId: string, date?: string): 
   });
 
   if (error) throw error;
-  return data[0];
+  const firstRow = Array.isArray(data) ? data[0] : null;
+  if (!firstRow) {
+    throw new Error('No entitlement data returned');
+  }
+  return firstRow as BreakEntitlements;
 };
 
 export const checkBreakEligibility = async (
@@ -300,13 +349,13 @@ export const checkBreakEligibility = async (
 
   if (error) throw error;
   
-  const result = data as any;
+  const result = data as BreakEligibilityResponse | null;
   return {
-    can_request: result.can_request || false,
-    reason: result.reason || '',
-    work_duration_minutes: result.work_duration_minutes || 0,
-    micro_break_remaining: result.micro_break_remaining || 30,
-    lunch_break_remaining: result.lunch_break_remaining || 60
+    can_request: Boolean(result?.can_request),
+    reason: result?.reason ?? '',
+    work_duration_minutes: result?.work_duration_minutes ?? 0,
+    micro_break_remaining: result?.micro_break_remaining ?? 30,
+    lunch_break_remaining: result?.lunch_break_remaining ?? 60,
   };
 };
 

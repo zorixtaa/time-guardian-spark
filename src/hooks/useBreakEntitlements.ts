@@ -9,15 +9,16 @@ export const useBreakEntitlements = (userId: string | null, attendanceId: string
 
   const fetchEntitlements = async () => {
     if (!userId) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
       const data = await getDailyBreakEntitlements(userId);
       setEntitlements(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to load break entitlements';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -25,11 +26,12 @@ export const useBreakEntitlements = (userId: string | null, attendanceId: string
 
   const checkEligibility = async (breakType: BreakType): Promise<BreakEligibility | null> => {
     if (!userId || !attendanceId) return null;
-    
+
     try {
       return await checkBreakEligibility(userId, attendanceId, breakType);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unable to check break eligibility';
+      setError(message);
       return null;
     }
   };
