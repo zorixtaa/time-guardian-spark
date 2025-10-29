@@ -66,10 +66,13 @@ const Auth = () => {
           description: 'Successfully signed in',
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: isSignUp ? 'Sign up failed' : 'Sign in failed',
-        description: error.message,
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Please try again with valid credentials.',
         variant: 'destructive',
       });
     } finally {
@@ -88,10 +91,13 @@ const Auth = () => {
       });
 
       if (error) throw error;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: 'Google sign-in failed',
-        description: error.message,
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Please try again with your Google account.',
         variant: 'destructive',
       });
       setLoading(false);

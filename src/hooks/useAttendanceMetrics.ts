@@ -127,11 +127,14 @@ export const useAttendanceMetrics = (userId: string | undefined) => {
         totalBreakMinutes,
         streakDays 
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to load attendance metrics:', error);
+      const message = error instanceof Error
+        ? error.message
+        : 'Unable to calculate your attendance stats right now.';
       toast({
         title: 'Error loading stats',
-        description: error.message ?? 'Unable to calculate your attendance stats right now.',
+        description: message,
         variant: 'destructive',
       });
       setMetrics(defaultMetrics);
