@@ -10,7 +10,7 @@ export type BreakType = 'coffee' | 'wc' | 'lunch';
 
 export type BreakStatus = 'pending' | 'approved' | 'denied' | 'active' | 'completed';
 
-export type UserRole = 'employee' | 'admin' | 'super_admin';
+export type UserRole = 'employee' | 'admin' | 'super_admin' | 'hr_manager' | 'it_manager' | 'dpo';
 
 export interface AttendanceRecord {
   id: string;

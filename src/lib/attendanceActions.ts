@@ -83,6 +83,26 @@ export const requestBreak = async (
 };
 
 /**
+ * Start an approved break - user clicks the "Leave Position?" button
+ */
+export const startApprovedBreak = async (breakId: string, userId: string) => {
+  const { data, error } = await supabase.rpc('start_approved_break', {
+    p_break_id: breakId,
+    p_user_id: userId
+  });
+
+  if (error) throw error;
+  
+  const result = data as any;
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to start break');
+  }
+
+  return result;
+};
+
+/**
  * End an active break
  */
 export const endBreak = async (breakId: string) => {

@@ -149,6 +149,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [creatingDepartment, setCreatingDepartment] = useState(false);
   const [selectedAdminCandidate, setSelectedAdminCandidate] = useState('');
+  const [selectedPromotionRole, setSelectedPromotionRole] = useState<UserRole>('admin');
   const [promotingAdmin, setPromotingAdmin] = useState(false);
   const [removingAdminId, setRemovingAdminId] = useState<string | null>(null);
   const [selectedAssignmentMember, setSelectedAssignmentMember] = useState('');
@@ -502,7 +503,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
   );
 
   const currentAdmins = useMemo(
-    () => teamMembers.filter((member) => member.role === 'admin'),
+    () => teamMembers.filter((member) => member.role === 'admin' || member.role === 'hr_manager' || member.role === 'it_manager' || member.role === 'dpo'),
     [teamMembers],
   );
 
@@ -583,7 +584,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
     if (!selectedAdminCandidate) {
       toast({
         title: 'Select a teammate',
-        description: 'Choose who should receive admin privileges.',
+        description: 'Choose who should receive elevated privileges.',
         variant: 'destructive',
       });
       return;
@@ -599,10 +600,10 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
       return;
     }
 
-    if (candidate.role === 'admin' || candidate.role === 'super_admin') {
+    if (candidate.role !== 'employee') {
       toast({
-        title: 'Already an admin',
-        description: `${candidate.name} already has elevated access.`,
+        title: 'Already has elevated role',
+        description: `${candidate.name} already has ${formatRole(candidate.role)} access.`,
         variant: 'destructive',
       });
       return;
@@ -613,19 +614,20 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
     try {
       const { error } = await supabase
         .from('user_roles')
-        .upsert({ user_id: selectedAdminCandidate, role: 'admin' }, { onConflict: 'user_id,role' });
+        .upsert({ user_id: selectedAdminCandidate, role: selectedPromotionRole }, { onConflict: 'user_id,role' });
 
       if (error) throw error;
 
       toast({
-        title: 'Admin privileges granted',
-        description: `${candidate.name} now has admin access.`,
+        title: `${formatRole(selectedPromotionRole)} privileges granted`,
+        description: `${candidate.name} now has ${formatRole(selectedPromotionRole)} access.`,
       });
 
       setSelectedAdminCandidate('');
+      setSelectedPromotionRole('admin');
       await fetchAdminData();
     } catch (error: any) {
-      console.error('Failed to promote admin', error);
+      console.error('Failed to promote user', error);
       toast({
         title: 'Unable to promote',
         description: error.message ?? 'Please try again shortly.',
@@ -1348,7 +1350,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="admin-select" className="text-sm text-muted-foreground">
-                  Promote a teammate to admin
+                  Promote a teammate to elevated role
                 </Label>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <Select
@@ -1376,6 +1378,25 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
                       )}
                     </SelectContent>
                   </Select>
+                  
+                  <Select
+                    value={selectedPromotionRole}
+                    onValueChange={(value) => setSelectedPromotionRole(value as UserRole)}
+                    disabled={promotingAdmin}
+                  >
+                    <SelectTrigger
+                      className="h-11 w-full rounded-xl border-yellow/20 bg-black/40 text-foreground sm:max-w-xs"
+                    >
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="hr_manager">HR Manager</SelectItem>
+                      <SelectItem value="it_manager">IT Manager</SelectItem>
+                      <SelectItem value="dpo">DPO</SelectItem>
+                    </SelectContent>
+                  </Select>
+
                   <Button
                     type="button"
                     onClick={handlePromoteToAdmin}
@@ -1388,13 +1409,16 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
                     <span className="ml-2">Promote</span>
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Admin: Manage team attendance and breaks. HR Manager: Manage employee data and compliance. IT Manager: Manage devices and access. DPO: Data protection oversight.
+                </p>
               </div>
 
               <div className="space-y-3">
-                <p className="text-sm font-medium text-foreground">Current admins</p>
+                <p className="text-sm font-medium text-foreground">Current elevated roles</p>
                 {currentAdmins.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    No admins yet. Promote a teammate to give them elevated access.
+                    No elevated roles assigned yet. Promote a teammate to give them special access.
                   </p>
                 )}
 
@@ -1405,7 +1429,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
                   >
                     <div>
                       <p className="text-sm font-medium text-foreground">{admin.name}</p>
-                      <p className="text-xs text-muted-foreground">{admin.teamName}</p>
+                      <p className="text-xs text-muted-foreground">{formatRole(admin.role)} · {admin.teamName}</p>
                     </div>
                     <Button
                       type="button"

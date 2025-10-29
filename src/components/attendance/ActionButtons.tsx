@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import type { AttendanceState, BreakRecord, BreakEntitlements } from '@/types/attendance';
-import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2, Clock, Timer, AlertCircle } from 'lucide-react';
+import { LogIn, LogOut, Coffee, UtensilsCrossed, CircleSlash2, Clock, Timer, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ActionButtonsProps {
@@ -13,6 +13,7 @@ interface ActionButtonsProps {
   onRequestCoffee: () => void;
   onRequestWc: () => void;
   onRequestLunch: () => void;
+  onStartApprovedBreak: (breakId: string) => void;
   loading?: boolean;
 }
 
@@ -26,13 +27,14 @@ export const ActionButtons = ({
   onRequestCoffee,
   onRequestWc,
   onRequestLunch,
+  onStartApprovedBreak,
   loading = false,
 }: ActionButtonsProps) => {
   const canCheckIn = state === 'not_checked_in' || state === 'checked_out';
   const canCheckOut = state === 'checked_in' || state.includes('_break');
   const canRequestBreaks = state === 'checked_in' && activeBreaks.length === 0;
 
-  // Check which breaks are currently active or pending
+  // Check which breaks are currently active, pending, or approved
   const currentBreak = activeBreaks[0]; // Only one break at a time
   const isCoffeeActive = currentBreak?.type === 'coffee' && currentBreak?.status === 'active';
   const isWcActive = currentBreak?.type === 'wc' && currentBreak?.status === 'active';
@@ -40,6 +42,9 @@ export const ActionButtons = ({
   const isCoffeePending = currentBreak?.type === 'coffee' && currentBreak?.status === 'pending';
   const isWcPending = currentBreak?.type === 'wc' && currentBreak?.status === 'pending';
   const isLunchPending = currentBreak?.type === 'lunch' && currentBreak?.status === 'pending';
+  const isCoffeeApproved = currentBreak?.type === 'coffee' && currentBreak?.status === 'approved';
+  const isWcApproved = currentBreak?.type === 'wc' && currentBreak?.status === 'approved';
+  const isLunchApproved = currentBreak?.type === 'lunch' && currentBreak?.status === 'approved';
 
   // Break eligibility checks
   const canRequestCoffee = canRequestBreaks && 
@@ -279,6 +284,33 @@ export const ActionButtons = ({
                     Waiting for admin approval...
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Show approved break - ready to start */}
+          {activeBreaks.length > 0 && currentBreak?.status === 'approved' && (
+            <div className="mt-3 rounded-xl border-2 border-green-500/60 bg-gradient-to-br from-green-500/20 to-green-600/10 p-5 shadow-[0_0_30px_rgba(34,197,94,0.3)] animate-pulse">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-6 w-6 text-green-400" />
+                  <div>
+                    <p className="text-base font-semibold text-green-400">
+                      {currentBreak.type.charAt(0).toUpperCase() + currentBreak.type.slice(1)} break approved!
+                    </p>
+                    <p className="text-xs text-green-400/80">
+                      Your break has been approved by admin
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => onStartApprovedBreak(currentBreak.id)}
+                  disabled={loading}
+                  className="w-full h-14 bg-green-500 hover:bg-green-600 text-white font-bold text-base shadow-[0_0_25px_rgba(34,197,94,0.5)] hover:shadow-[0_0_35px_rgba(34,197,94,0.7)] transition-all"
+                >
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Break Approved - Leave Position?
+                </Button>
               </div>
             </div>
           )}

@@ -860,10 +860,13 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_dpo: { Args: { _user_id: string }; Returns: boolean }
       is_emergency_break_available: {
         Args: { _user_id: string }
         Returns: boolean
       }
+      is_hr_manager: { Args: { _user_id: string }; Returns: boolean }
+      is_it_manager: { Args: { _user_id: string }; Returns: boolean }
       is_user_on_shift: { Args: { _user_id: string }; Returns: boolean }
       request_break: {
         Args: {
@@ -874,9 +877,19 @@ export type Database = {
         }
         Returns: Json
       }
+      start_approved_break: {
+        Args: { p_break_id: string; p_user_id: string }
+        Returns: Json
+      }
     }
     Enums: {
-      app_role: "super_admin" | "admin" | "employee"
+      app_role:
+        | "super_admin"
+        | "admin"
+        | "employee"
+        | "hr_manager"
+        | "it_manager"
+        | "dpo"
       break_status: "pending" | "approved" | "denied" | "active" | "completed"
       break_type: "coffee" | "wc" | "lunch" | "emergency"
       break_type_enum: "coffee" | "wc" | "lunch" | "emergency"
@@ -1008,7 +1021,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "admin", "employee"],
+      app_role: [
+        "super_admin",
+        "admin",
+        "employee",
+        "hr_manager",
+        "it_manager",
+        "dpo",
+      ],
       break_status: ["pending", "approved", "denied", "active", "completed"],
       break_type: ["coffee", "wc", "lunch", "emergency"],
       break_type_enum: ["coffee", "wc", "lunch", "emergency"],

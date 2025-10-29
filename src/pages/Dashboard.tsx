@@ -13,6 +13,7 @@ import {
   checkIn,
   checkOut,
   toggleBreak,
+  startApprovedBreak,
 } from '@/lib/attendanceActions';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, Clock, Coffee, UtensilsCrossed, CircleSlash2, Target, Zap } from 'lucide-react';
@@ -397,6 +398,27 @@ const Dashboard = () => {
     }
   };
 
+  const handleStartApprovedBreak = async (breakId: string) => {
+    if (!user) return;
+    setActionLoading(true);
+    try {
+      await startApprovedBreak(breakId, user.id);
+      toast({
+        title: 'Break Started',
+        description: 'Your break timer is now running',
+      });
+      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
 
   const derivedName = useMemo(() => {
     if (!user) return '';
@@ -564,6 +586,7 @@ const Dashboard = () => {
               onRequestCoffee={handleRequestCoffee}
               onRequestWc={handleRequestWc}
               onRequestLunch={handleRequestLunch}
+              onStartApprovedBreak={handleStartApprovedBreak}
               loading={actionLoading || attendanceLoading || entitlementsLoading}
             />
           </CardContent>
