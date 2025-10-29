@@ -49,6 +49,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { AttendanceRecord, BreakRecord, UserRole, EntitlementNotification } from '@/types/attendance';
+import { normalizeBreakType } from '@/lib/breakType';
 import {
   forceEndBreak,
   approveBreak,
@@ -272,7 +273,11 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
             throw breaksError;
           }
 
-          openBreaks = (breaksData ?? []) as BreakRecord[];
+          const rawBreaks = (breaksData ?? []) as Array<Omit<BreakRecord, 'type'> & { type?: string | null }>;
+          openBreaks = rawBreaks.map((record) => ({
+            ...record,
+            type: normalizeBreakType(record.type),
+          })) as BreakRecord[];
 
           const activeRecords = openBreaks.filter((record) => record.status === 'active');
           activeBreaks = activeRecords.map((record) => ({
