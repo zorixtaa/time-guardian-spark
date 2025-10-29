@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeBreakType } from '@/lib/breakType';
 import type { AttendanceRecord, AttendanceState, BreakRecord } from '@/types/attendance';
 import { useToast } from '@/hooks/use-toast';
 
@@ -60,7 +61,11 @@ export const useAttendanceState = (userId: string | undefined) => {
 
       if (breakError) throw breakError;
 
-      const currentBreaks = (breaks ?? []) as BreakRecord[];
+      const rawBreaks = (breaks ?? []) as Array<Omit<BreakRecord, 'type'> & { type?: string | null }>;
+      const currentBreaks = rawBreaks.map((record) => ({
+        ...record,
+        type: normalizeBreakType(record.type),
+      })) as BreakRecord[];
       setActiveBreaks(currentBreaks);
 
       // Determine state based on breaks

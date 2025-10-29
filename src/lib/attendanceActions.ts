@@ -1,9 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
+import { isLegacyBreakTypeError, normalizeBreakType } from '@/lib/breakType';
 import type {
   BreakType,
   BreakStatus,
   BreakEntitlements,
   BreakEligibility,
+  BreakRecord,
   EntitlementNotification,
 } from '@/types/attendance';
 
@@ -62,11 +64,11 @@ export const checkOut = async (attendanceId: string) => {
     .is('ended_at', null);
 
   if (activeBreaks && activeBreaks.length > 0) {
-    const now = new Date().toISOString();
-    await supabase
-      .from('breaks')
-      .update({ ended_at: now, status: 'completed' })
-      .in('id', activeBreaks.map(b => b.id));
+    await Promise.all(
+      activeBreaks.map(async (breakRecord) => {
+        await endBreak(breakRecord.id);
+      })
+    );
   }
 
   // Then check out
@@ -151,10 +153,12 @@ export const startApprovedBreak = async (breakId: string, userId: string) => {
  * End an active break
  */
 export const endBreak = async (breakId: string) => {
+  const now = new Date().toISOString();
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
-      ended_at: new Date().toISOString(),
+      ended_at: now,
       status: 'completed',
     })
     .eq('id', breakId)
@@ -162,8 +166,31 @@ export const endBreak = async (breakId: string) => {
     .select()
     .single();
 
-  if (error) throw error;
-  return { action: 'ended' as const, data };
+  if (!error) {
+    return { action: 'ended' as const, data };
+  }
+
+  if (!isLegacyBreakTypeError(error)) {
+    throw error;
+  }
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('breaks')
+    .update({
+      ended_at: now,
+      status: 'completed',
+      type: 'coffee',
+    })
+    .eq('id', breakId)
+    .eq('status', 'active')
+    .select()
+    .single();
+
+  if (fallbackError) {
+    throw fallbackError;
+  }
+
+  return { action: 'ended' as const, data: fallbackData };
 };
 
 /**
@@ -203,13 +230,14 @@ export const getActiveBreak = async (userId: string, attendanceId: string, break
     .select('*')
     .eq('user_id', userId)
     .eq('attendance_id', attendanceId)
-    .eq('type', breakType)
     .eq('status', 'active')
     .is('ended_at', null)
-    .maybeSingle();
+    .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data;
+
+  const rawBreaks = (data ?? []) as Array<Omit<BreakRecord, 'type'> & { type?: string | null }>;
+  return (rawBreaks.find(record => normalizeBreakType(record.type) === breakType) as BreakRecord | undefined) ?? null;
 };
 
 /**
@@ -225,7 +253,11 @@ export const getAllActiveBreaks = async (userId: string, attendanceId: string) =
     .is('ended_at', null);
 
   if (error) throw error;
-  return data || [];
+  const rawBreaks = (data ?? []) as Array<Omit<BreakRecord, 'type'> & { type?: string | null }>;
+  return rawBreaks.map(record => ({
+    ...record,
+    type: normalizeBreakType(record.type),
+  })) as BreakRecord[];
 };
 
 /**
@@ -233,7 +265,7 @@ export const getAllActiveBreaks = async (userId: string, attendanceId: string) =
  */
 export const endAllActiveBreaks = async (attendanceId: string) => {
   const now = new Date().toISOString();
-  
+
   const { data, error } = await supabase
     .from('breaks')
     .update({
@@ -245,8 +277,28 @@ export const endAllActiveBreaks = async (attendanceId: string) => {
     .is('ended_at', null)
     .select();
 
-  if (error) throw error;
-  return data;
+  if (!error) {
+    return data;
+  }
+
+  if (!isLegacyBreakTypeError(error)) {
+    throw error;
+  }
+
+  const { data: activeBreaks } = await supabase
+    .from('breaks')
+    .select('id')
+    .eq('attendance_id', attendanceId)
+    .eq('status', 'active')
+    .is('ended_at', null);
+
+  const breakIds = activeBreaks?.map(record => record.id) ?? [];
+  const results = await Promise.all(breakIds.map(async (breakId: string) => {
+    const result = await endBreak(breakId);
+    return result.data;
+  }));
+
+  return results;
 };
 
 // Admin functions for managing break requests
@@ -310,13 +362,39 @@ export const forceEndBreak = async (breakId: string, adminId: string, reason?: s
     .select()
     .maybeSingle();
 
-  if (error) throw error;
+  if (!error) {
+    if (!data) {
+      throw new Error('Unable to force end this break. It may have already completed.');
+    }
+    return data;
+  }
 
-  if (!data) {
+  if (!isLegacyBreakTypeError(error)) {
+    throw error;
+  }
+
+  const { data: fallbackData, error: fallbackError } = await supabase
+    .from('breaks')
+    .update({
+      ended_at: now,
+      status: 'completed',
+      reason: reason ?? 'Force ended by admin',
+      type: 'coffee',
+    })
+    .eq('id', breakId)
+    .eq('status', 'active')
+    .select()
+    .maybeSingle();
+
+  if (fallbackError) {
+    throw fallbackError;
+  }
+
+  if (!fallbackData) {
     throw new Error('Unable to force end this break. It may have already completed.');
   }
 
-  return data;
+  return fallbackData;
 };
 
 // Break entitlement functions
