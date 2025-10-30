@@ -22,6 +22,7 @@ import { User } from '@supabase/supabase-js';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import { UserRole } from '@/types/attendance';
 import { XpProgress } from '@/components/xp/XpProgress';
+import logo from '@/assets/logo.png';
 
 const formatHoursAndMinutes = (totalMinutes: number) => {
   const hours = Math.floor(totalMinutes / 60);
@@ -247,6 +248,7 @@ const Dashboard = () => {
 
   const handleSignOut = async () => {
     if (state !== 'checked_out' && state !== 'not_checked_in') {
+      console.warn('[ACTION] Sign-out attempted while on shift', { userId: user?.id, state });
       toast({
         title: 'Check out required',
         description: 'Please end your shift before signing out.',
@@ -255,6 +257,7 @@ const Dashboard = () => {
       return;
     }
 
+    console.log('[ACTION] Sign-out initiated', { userId: user?.id, timestamp: new Date().toISOString() });
     await supabase.auth.signOut();
     setProfileName(null);
     setUserTeamId(null);
@@ -266,12 +269,14 @@ const Dashboard = () => {
     setActionLoading(true);
     try {
       await checkIn(user.id);
+      console.log('[ACTION] Check-in successful', { userId: user.id, timestamp: new Date().toISOString() });
       toast({
         title: 'Checked In!',
         description: 'Your shift has started',
       });
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: unknown) {
+      console.error('[ACTION] Check-in failed', { userId: user.id, error });
       toast({
         title: 'Error',
         description: getErrorMessage(error, 'Unable to check in.'),
@@ -284,6 +289,7 @@ const Dashboard = () => {
 
   const handleCheckOut = async () => {
     if (!currentAttendance) {
+      console.warn('[ACTION] Check-out attempted without active attendance', { userId: user?.id });
       toast({
         title: 'No active shift found',
         description: 'Please check in before attempting to check out.',
@@ -294,12 +300,18 @@ const Dashboard = () => {
     setActionLoading(true);
     try {
       await checkOut(currentAttendance.id);
+      console.log('[ACTION] Check-out successful', { 
+        userId: user?.id, 
+        attendanceId: currentAttendance.id,
+        timestamp: new Date().toISOString() 
+      });
       toast({
         title: 'Checked Out!',
         description: 'Have a great day!',
       });
       await Promise.all([refresh(), refreshMetrics()]);
     } catch (error: unknown) {
+      console.error('[ACTION] Check-out failed', { userId: user?.id, attendanceId: currentAttendance.id, error });
       toast({
         title: 'Error',
         description: getErrorMessage(error, 'Unable to check out.'),
@@ -313,6 +325,21 @@ const Dashboard = () => {
   const handleRequestCoffee = async () => {
     if (!user || !currentAttendance) return;
     
+    console.warn('[BREAK SYSTEM] Coffee break request blocked - system disabled', { 
+      userId: user.id, 
+      attendanceId: currentAttendance.id,
+      timestamp: new Date().toISOString() 
+    });
+    
+    toast({
+      title: 'Break System Disabled',
+      description: 'Break functionality is temporarily unavailable',
+      variant: 'destructive',
+    });
+    return;
+    
+    // Original code commented out while breaks are disabled
+    /*
     // Check eligibility first
     const limitCheck = await breakEligibility.checkBreakLimit('coffee');
     if (!limitCheck.allowed) {
@@ -353,117 +380,58 @@ const Dashboard = () => {
     } finally {
       setActionLoading(false);
     }
+    */
   };
 
   const handleRequestWc = async () => {
     if (!user || !currentAttendance) return;
     
-    // Check eligibility first
-    const limitCheck = await breakEligibility.checkBreakLimit('wc');
-    if (!limitCheck.allowed) {
-      toast({
-        title: 'Cannot request break',
-        description: limitCheck.reason,
-        variant: 'destructive',
-      });
-      return;
-    }
+    console.warn('[BREAK SYSTEM] WC break request blocked - system disabled', { 
+      userId: user.id, 
+      attendanceId: currentAttendance.id,
+      timestamp: new Date().toISOString() 
+    });
     
-    setActionLoading(true);
-    try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'wc', userTeamId);
-      if (result.action === 'started') {
-        toast({
-          title: 'WC Break Started',
-          description: 'Take your time!',
-        });
-      } else if (result.action === 'requested') {
-        toast({
-          title: 'Break Requested',
-          description: 'Waiting for admin approval...',
-        });
-      } else {
-        toast({
-          title: 'WC Break Ended',
-          description: 'Welcome back!',
-        });
-      }
-      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Unable to request a WC break.'),
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
+    toast({
+      title: 'Break System Disabled',
+      description: 'Break functionality is temporarily unavailable',
+      variant: 'destructive',
+    });
+    return;
   };
 
   const handleRequestLunch = async () => {
     if (!user || !currentAttendance) return;
     
-    // Check eligibility first
-    const limitCheck = await breakEligibility.checkBreakLimit('lunch');
-    if (!limitCheck.allowed) {
-      toast({
-        title: 'Cannot request break',
-        description: limitCheck.reason,
-        variant: 'destructive',
-      });
-      return;
-    }
+    console.warn('[BREAK SYSTEM] Lunch break request blocked - system disabled', { 
+      userId: user.id, 
+      attendanceId: currentAttendance.id,
+      timestamp: new Date().toISOString() 
+    });
     
-    setActionLoading(true);
-    try {
-      const result = await toggleBreak(user.id, currentAttendance.id, 'lunch', userTeamId);
-      if (result.action === 'started') {
-        toast({
-          title: 'Lunch Break Started',
-          description: 'Enjoy your meal!',
-        });
-      } else if (result.action === 'requested') {
-        toast({
-          title: 'Break Requested',
-          description: 'Waiting for admin approval...',
-        });
-      } else {
-        toast({
-          title: 'Lunch Break Ended',
-          description: 'Back to work!',
-        });
-      }
-      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Unable to request a lunch break.'),
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
+    toast({
+      title: 'Break System Disabled',
+      description: 'Break functionality is temporarily unavailable',
+      variant: 'destructive',
+    });
+    return;
   };
 
   const handleStartApprovedBreak = async (breakId: string) => {
     if (!user) return;
-    setActionLoading(true);
-    try {
-      await startApprovedBreak(breakId, user.id);
-      toast({
-        title: 'Break Started',
-        description: 'Your break timer is now running',
-      });
-      await Promise.all([refresh(), refreshMetrics(), fetchEntitlements()]);
-    } catch (error: unknown) {
-      toast({
-        title: 'Error',
-        description: getErrorMessage(error, 'Unable to start the approved break.'),
-        variant: 'destructive',
-      });
-    } finally {
-      setActionLoading(false);
-    }
+    
+    console.warn('[BREAK SYSTEM] Approved break start blocked - system disabled', { 
+      userId: user.id, 
+      breakId,
+      timestamp: new Date().toISOString() 
+    });
+    
+    toast({
+      title: 'Break System Disabled',
+      description: 'Break functionality is temporarily unavailable',
+      variant: 'destructive',
+    });
+    return;
   };
 
 
@@ -549,9 +517,11 @@ const Dashboard = () => {
       <header className="border-b border-yellow/10 bg-black/40 backdrop-blur">
         <div className="container mx-auto flex flex-wrap items-center justify-between gap-4 px-6 py-6">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-yellow/20 text-yellow">
-              <Clock className="w-6 h-6" />
-            </div>
+            <img 
+              src={logo}
+              alt="Market Wave"
+              className="h-10 w-auto"
+            />
             <div>
               <p className="text-sm uppercase tracking-wide text-yellow/80">Personal Attendance</p>
               <h1 className="text-2xl font-semibold">Welcome back, {derivedName || user.email}</h1>
