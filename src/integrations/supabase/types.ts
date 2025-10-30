@@ -775,7 +775,7 @@ export type Database = {
           break_id: string
           break_type: Database["public"]["Enums"]["break_type_enum"]
           created_at: string
-          team_id: string | null
+          team_id: string
           user_id: string
           user_name: string
         }[]
