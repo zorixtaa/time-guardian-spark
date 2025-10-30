@@ -7,6 +7,7 @@ import { useAttendanceState } from '@/hooks/useAttendanceState';
 import { useAttendanceMetrics } from '@/hooks/useAttendanceMetrics';
 import { useXpSystem } from '@/hooks/useXpSystem';
 import { useBreakEntitlements } from '@/hooks/useBreakEntitlements';
+import { useBreakEligibility } from '@/hooks/useBreakEligibility';
 import { StateIndicator } from '@/components/attendance/StateIndicator';
 import { ActionButtons } from '@/components/attendance/ActionButtons';
 import {
@@ -75,6 +76,12 @@ const Dashboard = () => {
     loading: entitlementsLoading,
     fetchEntitlements,
   } = useBreakEntitlements(user?.id, currentAttendance?.id);
+  
+  const breakEligibility = useBreakEligibility(
+    user?.id ?? null,
+    currentAttendance?.id ?? null,
+    currentAttendance?.clock_in_at ?? null
+  );
 
   // Calculate work duration since last break or clock-in
   const workDurationMinutes = useMemo(() => {
@@ -305,6 +312,18 @@ const Dashboard = () => {
 
   const handleRequestCoffee = async () => {
     if (!user || !currentAttendance) return;
+    
+    // Check eligibility first
+    const limitCheck = await breakEligibility.checkBreakLimit('coffee');
+    if (!limitCheck.allowed) {
+      toast({
+        title: 'Cannot request break',
+        description: limitCheck.reason,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setActionLoading(true);
     try {
       const result = await toggleBreak(user.id, currentAttendance.id, 'coffee', userTeamId);
@@ -338,6 +357,18 @@ const Dashboard = () => {
 
   const handleRequestWc = async () => {
     if (!user || !currentAttendance) return;
+    
+    // Check eligibility first
+    const limitCheck = await breakEligibility.checkBreakLimit('wc');
+    if (!limitCheck.allowed) {
+      toast({
+        title: 'Cannot request break',
+        description: limitCheck.reason,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setActionLoading(true);
     try {
       const result = await toggleBreak(user.id, currentAttendance.id, 'wc', userTeamId);
@@ -371,6 +402,18 @@ const Dashboard = () => {
 
   const handleRequestLunch = async () => {
     if (!user || !currentAttendance) return;
+    
+    // Check eligibility first
+    const limitCheck = await breakEligibility.checkBreakLimit('lunch');
+    if (!limitCheck.allowed) {
+      toast({
+        title: 'Cannot request break',
+        description: limitCheck.reason,
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     setActionLoading(true);
     try {
       const result = await toggleBreak(user.id, currentAttendance.id, 'lunch', userTeamId);

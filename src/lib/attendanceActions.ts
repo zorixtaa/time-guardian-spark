@@ -105,7 +105,7 @@ export const requestBreak = async (
 
   if (error) throw error;
 
-  const result = data as RequestBreakResponse;
+  const result = data as unknown as RequestBreakResponse;
 
   if (!result?.success) {
     throw new Error(result?.error || 'Failed to request break');
@@ -140,7 +140,7 @@ export const startApprovedBreak = async (breakId: string, userId: string) => {
 
   if (error) throw error;
 
-  const result = data as StartApprovedBreakResponse;
+  const result = data as unknown as StartApprovedBreakResponse;
 
   if (!result?.success) {
     throw new Error(result?.error || 'Failed to start break');
@@ -310,7 +310,7 @@ export const approveBreak = async (breakId: string, adminId: string) => {
 
   if (error) throw error;
 
-  const result = data as BreakApprovalResponse;
+  const result = data as unknown as BreakApprovalResponse;
 
   if (!result?.success) {
     throw new Error(result?.error || 'Failed to approve break');
@@ -328,7 +328,7 @@ export const denyBreak = async (breakId: string, adminId: string, reason?: strin
 
   if (error) throw error;
 
-  const result = data as BreakApprovalResponse;
+  const result = data as unknown as BreakApprovalResponse;
 
   if (!result?.success) {
     throw new Error(result?.error || 'Failed to deny break');

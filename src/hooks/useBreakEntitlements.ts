@@ -38,6 +38,7 @@ export const useBreakEntitlements = (userId: string | null, attendanceId: string
 
   useEffect(() => {
     fetchEntitlements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   return {
