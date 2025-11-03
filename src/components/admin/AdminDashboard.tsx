@@ -125,6 +125,12 @@ interface TeamOption {
   name: string;
 }
 
+interface ProfileRow {
+  id: string;
+  display_name: string | null;
+  team_id: string | null;
+}
+
 const activityLabel: Record<ActivityItem['action'], string> = {
   'checked-in': 'Checked in for the day',
   break: 'Started a break',
@@ -201,8 +207,18 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
           throw profileError;
         }
 
-        const profiles = profileData ?? [];
-        const visibleUserIds = profiles.map((profile) => profile.id);
+        const profiles = (profileData ?? []) as ProfileRow[];
+        const normalizedProfiles = profiles.map((profile) => {
+          const trimmed = (profile.display_name ?? '').trim();
+          const fallback = `Teammate ${profile.id.slice(0, 6)}`;
+
+          return {
+            ...profile,
+            display_name: trimmed.length > 0 ? trimmed : fallback,
+          };
+        });
+
+        const visibleUserIds = normalizedProfiles.map((profile) => profile.id);
 
         let teamsData: { id: string; name: string }[] = [];
 
@@ -315,7 +331,9 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
 
         setOverview({ active, onBreak, onLunch, total: totalActive });
 
-        const profileMap = new Map(profiles.map((profile) => [profile.id, profile.display_name]));
+        const profileMap = new Map(
+          normalizedProfiles.map((profile) => [profile.id, profile.display_name]),
+        );
         const attendanceByUser = new Map(attendance.map((record) => [record.user_id, record]));
         const breakByUser = new Map(activeBreaks.map((record) => [record.user_id, record]));
         const roleByUser = new Map<string, UserRole>();
@@ -358,9 +376,9 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
         };
 
         const teamNameMap = new Map(teamsData.map((team) => [team.id, team.name]));
-        const membersByTeam = new Map<string | null, typeof profiles>();
+        const membersByTeam = new Map<string | null, ProfileRow[]>();
 
-        profiles.forEach((profile) => {
+        normalizedProfiles.forEach((profile) => {
           const key = profile.team_id ?? null;
           if (!membersByTeam.has(key)) {
             membersByTeam.set(key, []);
@@ -368,7 +386,7 @@ const AdminDashboard = ({ user, onSignOut, role, teamId, displayName }: AdminDas
           membersByTeam.get(key)!.push(profile);
         });
 
-        const roster: TeamMemberRow[] = profiles
+        const roster: TeamMemberRow[] = normalizedProfiles
           .map((profile) => {
             const currentBreak = breakByUser.get(profile.id);
             const currentAttendance = attendanceByUser.get(profile.id);
